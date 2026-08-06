@@ -1,0 +1,33 @@
+{
+  "name": "Weekly Reset 3.0 产后恢复运动计划",
+  "short_name": "Weekly Reset",
+  "description": "Weekly Reset 3.0：恢复优先的每周运动计划、视频库、现场课程打卡与训练记录",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f6f2ea",
+  "theme_color": "#465d52",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icons/apple-touch-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "any",
+  "categories": [
+    "health",
+    "fitness",
+    "lifestyle"
+  ]
+}

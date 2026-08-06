@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f6f2ea" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Weekly Reset" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="description" content="产后恢复优先的每周运动安排与视频库管理 PWA" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Weekly Reset 3.0</title>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">WR</div>
+        <div>
+          <h1>Weekly Reset <span class="brand-version">3.0</span></h1>
+          <p>恢复优先 · 智能排课</p>
+        </div>
+      </div>
+
+      <nav id="desktopNav" class="desktop-nav" aria-label="主要导航">
+        <button class="nav-item active" data-view="home"><span>⌂</span>今日</button>
+        <button class="nav-item" data-view="week"><span>▦</span>周计划</button>
+        <button class="nav-item" data-view="library"><span>▷</span>视频库</button>
+        <button class="nav-item" data-view="review"><span>✓</span>待审核 <b id="reviewBadge" class="badge">0</b></button>
+        <button class="nav-item" data-view="insights"><span>⌁</span>训练记录</button>
+        <button class="nav-item" data-view="settings"><span>⚙</span>设置</button>
+      </nav>
+
+      <div class="sidebar-card">
+        <p class="eyebrow">Weekly Reset 3.0</p>
+        <strong>恢复状态优先</strong>
+        <p>计划服务于身体状态，而不是反过来。</p>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="todayDate"></p>
+          <h2 id="viewTitle">今天做什么</h2>
+        </div>
+        <button id="installBtn" class="ghost-btn hidden">安装到 iPad</button>
+      </header>
+
+      <section id="view-home" class="view active">
+        <div id="todayHero" class="hero-card"></div>
+        <div class="two-column">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">身体状态</p>
+                <h3>今天适合按计划训练吗？</h3>
+              </div>
+            </div>
+            <div id="quickCheck" class="quick-check"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">本周概览</p>
+                <h3>负荷与完成情况</h3>
+              </div>
+            </div>
+            <div id="weekSummary" class="summary-grid"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="view-week" class="view">
+        <div class="week-navigation panel">
+          <button id="previousWeekBtn" class="ghost-btn" type="button">← 上一周</button>
+          <div class="week-navigation-title"><span id="weekViewLabel">本周计划</span><strong id="weekRange"></strong></div>
+          <div class="button-row"><button id="currentWeekBtn" class="ghost-btn hidden" type="button">回到本周</button><button id="nextWeekBtn" class="ghost-btn" type="button">下一周 →</button></div>
+        </div>
+        <div class="section-actions">
+          <div>
+            <p class="eyebrow">周六至周五</p>
+            <h3>计划与实际完成</h3>
+          </div>
+          <div class="button-row">
+            <button id="assessmentBtn" class="secondary-btn">填写周状态</button>
+            <button id="generateBtn" class="primary-btn">重新生成计划</button>
+          </div>
+        </div>
+        <div id="assessmentSummary" class="assessment-summary"></div>
+        <div id="weekReviewSummary" class="summary-grid wide week-review-summary"></div>
+        <section class="panel menstrual-panel">
+          <div class="panel-heading menstrual-panel-heading">
+            <div>
+              <p class="eyebrow">按日期调整强度</p>
+              <h3>生理期安排</h3>
+            </div>
+            <div class="button-row">
+              <button id="clearMenstrualBtn" class="ghost-btn hidden" type="button">关闭模式</button>
+              <button id="menstrualSettingsBtn" class="secondary-btn" type="button">设置 / 修改</button>
+            </div>
+          </div>
+          <div id="menstrualSummary"></div>
+          <p class="helper menstrual-helper">生理期模式严格排除腹肌／核心训练及臀桥、肩桥、髋抬高等骨盆倒置动作；候选不足时会安排休息。</p>
+        </section>
+        <section id="weeklyChannelPanel" class="panel weekly-channel-panel">
+          <div class="panel-heading weekly-filter-heading">
+            <div>
+              <p class="eyebrow">本周频道偏好</p>
+              <h3>这一周不想跟练哪些 YouTuber？</h3>
+            </div>
+            <button id="clearWeeklyChannelsBtn" class="ghost-btn" type="button">全部恢复</button>
+          </div>
+          <p class="helper weekly-filter-helper">勾选的频道不会出现在所选周的自动排课或“替换”结果中。每一周分别保存。</p>
+          <div id="weeklyChannelChoices" class="weekly-channel-choices"></div>
+          <div class="weekly-filter-footer">
+            <span id="weeklyChannelStatus" class="helper"></span>
+            <button id="applyWeeklyChannelsBtn" class="primary-btn" type="button">保存并重新生成</button>
+          </div>
+        </section>
+        <div id="planAvailabilityNotice"></div>
+        <div id="weekPlan" class="week-plan"></div>
+      </section>
+
+      <section id="view-library" class="view">
+        <div class="section-actions">
+          <div>
+            <p class="eyebrow">已批准内容</p>
+            <h3>训练视频库</h3>
+          </div>
+          <div class="button-row wrap"><button id="mergeStarterLibraryBtn" class="secondary-btn" type="button">补充内置备用视频</button><button id="addVideoBtn" class="primary-btn" type="button">手动添加视频</button></div>
+        </div>
+        <div class="filter-bar library-filter-bar">
+          <input id="librarySearch" type="search" placeholder="搜索标题或频道" />
+          <select id="libraryChannelFilter" aria-label="按频道筛选">
+            <option value="all">全部频道</option>
+          </select>
+          <select id="libraryFocusFilter">
+            <option value="all">全部重点</option>
+            <option value="postpartum">产后核心</option>
+            <option value="mobility">恢复活动度</option>
+            <option value="pilates">垫上 Pilates</option>
+            <option value="glutes">臀部稳定</option>
+            <option value="meditation">冥想放松</option>
+            <option value="cardio">有氧</option>
+          </select>
+          <select id="libraryPositionFilter">
+            <option value="all">全部体位</option>
+            <option value="mat">垫上为主</option>
+            <option value="mixed">混合</option>
+            <option value="standing">站立为主</option>
+          </select>
+          <select id="librarySort" aria-label="视频排序方式">
+            <option value="default">内置顺序</option>
+            <option value="channel-asc">频道名称 A–Z</option>
+            <option value="channel-desc">频道名称 Z–A</option>
+            <option value="usage-desc">使用次数：最多优先</option>
+            <option value="usage-asc">使用次数：最少优先</option>
+            <option value="recent-desc">最近使用：最新优先</option>
+            <option value="recent-asc">最近使用：最早优先</option>
+            <option value="title-asc">视频标题 A–Z</option>
+            <option value="title-desc">视频标题 Z–A</option>
+            <option value="duration-asc">时长：短到长</option>
+            <option value="duration-desc">时长：长到短</option>
+          </select>
+        </div>
+        <div id="libraryAuditStatus" class="library-audit-status"></div>
+        <div id="libraryCountSummary" class="helper library-count-summary"></div>
+        <div id="libraryGrid" class="video-grid"></div>
+      </section>
+
+      <section id="view-review" class="view">
+        <div class="section-actions">
+          <div>
+            <p class="eyebrow">自动同步后先人工确认</p>
+            <h3>待审核新视频</h3>
+          </div>
+          <button id="manualReviewAddBtn" class="primary-btn">手动添加视频</button>
+        </div>
+        <div class="notice">
+          无需 API：在 YouTube 找到单个视频后，可手动加入视频库并设置训练标签。只有已批准的视频会参与排课。
+        </div>
+        <div id="reviewList" class="review-list"></div>
+      </section>
+
+      <section id="view-insights" class="view">
+        <div class="section-actions">
+          <div>
+            <p class="eyebrow">训练反馈</p>
+            <h3>完成记录与身体反应</h3>
+          </div>
+          <button id="exportBtn" class="secondary-btn">导出数据</button>
+        </div>
+        <div id="insightCards" class="summary-grid wide"></div>
+        <div class="panel">
+          <div class="panel-heading"><h3>最近记录</h3></div>
+          <div id="historyList" class="history-list"></div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <div class="settings-grid">
+          <section class="panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">无 API 模式</p><h3>频道与视频快捷入口</h3></div>
+            </div>
+            <p class="helper settings-intro">点击频道可直接打开 YouTube 搜索；找到合适的单个视频后，回到 App 手动添加或替换即可。</p>
+            <div id="channelQuickLinks" class="channel-quick-links"></div>
+            <div class="button-row wrap">
+              <button id="settingsAddVideoBtn" class="primary-btn" type="button">手动添加视频</button>
+            </div>
+
+            <details class="advanced-settings">
+              <summary>高级：YouTube API 自动同步（可完全忽略）</summary>
+              <div class="advanced-settings-body">
+                <label class="field-label">API Key
+                  <input id="apiKeyInput" type="password" placeholder="AIza..." autocomplete="off" />
+                </label>
+                <p class="helper">只有需要自动同步时才配置。API Key 会保存在当前浏览器。</p>
+                <div id="channelSettings" class="channel-settings"></div>
+                <p class="helper">高强度备用频道的新视频只会进入待审核，非进阶期不会自动排入。</p>
+                <div class="button-row wrap">
+                  <button id="addChannelBtn" class="secondary-btn" type="button">增加频道</button>
+                  <button id="advancedSyncBtn" class="secondary-btn" type="button">立即同步</button>
+                  <button id="saveSettingsBtn" class="primary-btn" type="button">保存高级设置</button>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">排课偏好</p><h3>默认规则</h3></div></div>
+            <label class="switch-row"><span>优先垫上训练</span><input id="preferMat" type="checkbox" /></label>
+            <label class="switch-row"><span>避免大量卷腹</span><input id="avoidCrunch" type="checkbox" /></label>
+            <label class="switch-row"><span>疼痛时自动降级</span><input id="autoDowngrade" type="checkbox" /></label>
+            <label class="field-label">MIZI 最短间隔（天）
+              <input id="miziGap" type="number" min="7" max="30" />
+            </label>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">数据</p><h3>备份与恢复</h3></div></div>
+            <div class="stacked-actions">
+              <button id="settingsExportBtn" class="primary-btn" type="button">导出完整 JSON 备份</button>
+              <button id="importBtn" class="secondary-btn" type="button">导入 JSON 备份</button>
+              <input id="importFile" type="file" accept="application/json,.json" hidden />
+              <p class="helper">完整备份包含视频库、上周／本周／下周计划、全部训练记录、生理期设置和个人偏好。iPad 导出时可在系统分享面板中选择“存储到文件”。</p>
+              <button id="resetBtn" class="danger-btn">恢复初始视频库</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">原型说明</p><h3>目前支持</h3></div></div>
+            <ul class="feature-list">
+              <li>上周回顾、本周计划与下周预览分别保存</li>
+              <li>周状态评估、生理期日期与症状设置；生理期严格排除腹肌和骨盆倒置动作</li>
+              <li>基于规则的视频自动排课</li>
+              <li>无 API 的手动搜索、添加和替换视频</li>
+              <li>周计划与视频库均可直接打卡，支持同日多条训练记录</li>
+              <li>iPad 横竖屏适配、离线打开和主屏幕安装</li>
+              <li>播放训练时优先跳转到已安装的 YouTube App</li>
+            </ul>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <nav id="mobileNav" class="mobile-nav" aria-label="移动端导航">
+      <button class="active" data-view="home"><span>⌂</span>今日</button>
+      <button data-view="week"><span>▦</span>周计划</button>
+      <button data-view="library"><span>▷</span>视频库</button>
+      <button data-view="review"><span>✓</span>审核</button>
+      <button data-view="settings"><span>⚙</span>设置</button>
+    </nav>
+  </div>
+
+  <dialog id="assessmentDialog" class="app-dialog">
+    <form method="dialog" id="assessmentForm">
+      <div class="dialog-heading"><div><p class="eyebrow">每周五填写</p><h3>下周身体状态</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="form-grid">
+        <label class="field-label">睡眠与精神 <span id="energyValue">3</span>/5
+          <input id="energyRange" type="range" min="1" max="5" value="3" />
+        </label>
+        <label class="field-label">带娃与步行负荷 <span id="loadValue">3</span>/5
+          <input id="loadRange" type="range" min="1" max="5" value="3" />
+        </label>
+        <label class="field-label">每天可运动时间
+          <select id="timeAvailable"><option value="10">10 分钟</option><option value="15" selected>15 分钟</option><option value="20">20 分钟</option><option value="30">30 分钟</option></select>
+        </label>
+        <label class="field-label">本周期望
+          <select id="desiredMode"><option value="auto">由状态自动判断</option><option value="recovery">偏恢复</option><option value="stable">正常训练</option><option value="progress">适度进阶</option></select>
+        </label>
+      </div>
+      <fieldset>
+        <legend>目前不适部位（可多选）</legend>
+        <div class="chip-checks">
+          <label><input type="checkbox" name="pain" value="foot" />足弓/前脚掌</label>
+          <label><input type="checkbox" name="pain" value="knee" />膝盖</label>
+          <label><input type="checkbox" name="pain" value="back" />下背</label>
+          <label><input type="checkbox" name="pain" value="shoulder" />肩颈</label>
+          <label><input type="checkbox" name="pain" value="hip" />髋屈肌</label>
+          <label><input type="checkbox" name="pain" value="core" />腹部压力感</label>
+        </div>
+      </fieldset>
+      <label class="field-label">补充说明
+        <textarea id="assessmentNote" rows="3" placeholder="例如：本周抱娃很多，右肩前侧酸。"></textarea>
+      </label>
+      <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveAssessmentBtn" value="default" class="primary-btn">保存并生成</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="menstrualDialog" class="app-dialog">
+    <form method="dialog" id="menstrualForm">
+      <div class="dialog-heading"><div><p class="eyebrow">按日期重新排课</p><h3>生理期设置</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <label class="switch-row menstrual-enable-row"><span><strong>启用生理期模式</strong><small>设定日期内严格排除腹肌与骨盆倒置动作</small></span><input id="menstrualEnabled" type="checkbox" /></label>
+      <div id="menstrualFields">
+        <div class="form-grid">
+          <label class="field-label">开始日期<input id="menstrualStartDate" type="date" required /></label>
+          <label class="field-label">预计持续天数<input id="menstrualDuration" type="number" min="1" max="10" value="5" /></label>
+          <label class="field-label">经量<select id="menstrualFlow"><option value="light">偏少</option><option value="medium">正常</option><option value="heavy">偏多</option></select></label>
+          <label class="field-label">整体不适程度 <span id="menstrualSeverityValue">3</span>/5<input id="menstrualSeverity" type="range" min="1" max="5" value="3" /></label>
+        </div>
+        <fieldset>
+          <legend>主要症状（可多选）</legend>
+          <div class="chip-checks">
+            <label><input type="checkbox" name="menstrualSymptom" value="cramps" />腹痛/痉挛</label>
+            <label><input type="checkbox" name="menstrualSymptom" value="fatigue" />疲劳</label>
+            <label><input type="checkbox" name="menstrualSymptom" value="back" />腰背酸痛</label>
+            <label><input type="checkbox" name="menstrualSymptom" value="headache" />头痛/头晕</label>
+            <label><input type="checkbox" name="menstrualSymptom" value="bloating" />腹胀</label>
+          </div>
+        </fieldset>
+        <label class="switch-row"><span>前两天只安排温和恢复</span><input id="menstrualGentleFirstTwo" type="checkbox" checked /></label>
+        <div class="period-rule-grid"><div><strong>始终排除</strong><span>腹肌／核心训练</span></div><div><strong>始终排除</strong><span>臀桥、肩桥、髋抬高及类似骨盆倒置动作</span></div></div>
+        <label class="field-label">备注<textarea id="menstrualNote" rows="3" placeholder="例如：第一天腹痛明显，希望只做 5–10 分钟拉伸。"></textarea></label>
+      </div>
+      <div class="period-safety-note">重新排课时只使用已明确标记为“不含腹肌训练、也不含臀桥／骨盆抬高”的视频。动作内容未确认时宁可安排休息；严重疼痛、头晕或异常出血时应停止训练并寻求医疗建议。</div>
+      <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveMenstrualBtn" value="default" class="primary-btn">保存并重新安排</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="communityDialog" class="app-dialog community-dialog">
+    <form method="dialog" id="communityForm">
+      <input id="communityRecordId" type="hidden" />
+      <div class="dialog-heading"><div><p class="eyebrow">现场课程打卡</p><h3 id="communityDialogTitle">Community Centre 课程</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="community-class-options" role="radiogroup" aria-label="课程类型">
+        <label><input type="radio" name="communityClassChoice" value="pilates" onchange="document.getElementById('communityClassType').value='pilates'" checked><span><strong>普拉提课</strong><small>Community Centre Pilates</small></span></label>
+        <label><input type="radio" name="communityClassChoice" value="yoga" onchange="document.getElementById('communityClassType').value='yoga'"><span><strong>瑜伽课</strong><small>Community Centre Yoga</small></span></label>
+      </div>
+      <select id="communityClassType" class="hidden" aria-hidden="true"><option value="pilates">普拉提</option><option value="yoga">瑜伽</option></select>
+      <div class="form-grid">
+        <label class="field-label">课程日期<input id="communityDate" type="date" required /></label>
+        <label class="field-label">实际分钟数<input id="communityMinutes" type="number" min="1" max="240" value="60" /></label>
+      </div>
+      <label class="field-label">体感强度 <span id="communityEffortValue">3</span>/5<input id="communityEffort" type="range" min="1" max="5" value="3" /></label>
+      <label class="switch-row community-override-row"><span><strong>覆盖当天安排的视频</strong><small>保留原计划用于回顾，但当天实际完成显示为这节现场课</small></span><input id="communityOverridePlan" type="checkbox" checked /></label>
+      <fieldset><legend>课程后不适</legend><div class="chip-checks">
+        <label><input type="checkbox" name="communityPain" value="none" />无</label>
+        <label><input type="checkbox" name="communityPain" value="foot" />足部</label>
+        <label><input type="checkbox" name="communityPain" value="knee" />膝盖</label>
+        <label><input type="checkbox" name="communityPain" value="back" />下背</label>
+        <label><input type="checkbox" name="communityPain" value="shoulder" />肩颈</label>
+        <label><input type="checkbox" name="communityPain" value="core" />腹部压力</label>
+      </div></fieldset>
+      <label class="field-label">备注<textarea id="communityNote" rows="3" placeholder="例如：现场老师调整了动作；强度适中。"></textarea></label>
+      <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveCommunityBtn" value="default" class="primary-btn">保存课程打卡</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="feedbackDialog" class="app-dialog">
+    <form method="dialog" id="feedbackForm">
+      <input id="feedbackSource" type="hidden" value="plan" />
+      <input id="feedbackRecordId" type="hidden" />
+      <input id="feedbackVideoId" type="hidden" />
+      <div class="dialog-heading"><div><p class="eyebrow">训练记录</p><h3 id="feedbackTitle">记录今天</h3><p id="feedbackContext" class="feedback-context"></p></div><button value="cancel" class="icon-btn">×</button></div>
+      <label class="field-label">训练日期<input id="feedbackDate" type="date" required /></label>
+      <label class="field-label">完成情况
+        <select id="completionStatus"><option value="completed">全部完成</option><option value="partial">完成一部分</option><option value="swapped">换成其他训练</option><option value="skipped">跳过</option></select>
+      </label>
+      <label class="field-label">实际分钟数<input id="actualMinutes" type="number" min="0" max="180" value="15" /></label>
+      <label class="field-label">体感强度 <span id="effortValue">3</span>/5<input id="effortRange" type="range" min="1" max="5" value="3" /></label>
+      <fieldset><legend>训练后不适</legend><div class="chip-checks">
+        <label><input type="checkbox" name="feedbackPain" value="none" />无</label>
+        <label><input type="checkbox" name="feedbackPain" value="foot" />足部</label>
+        <label><input type="checkbox" name="feedbackPain" value="knee" />膝盖</label>
+        <label><input type="checkbox" name="feedbackPain" value="back" />下背</label>
+        <label><input type="checkbox" name="feedbackPain" value="shoulder" />肩颈</label>
+        <label><input type="checkbox" name="feedbackPain" value="core" />腹部压力</label>
+      </div></fieldset>
+      <label class="field-label">备注<textarea id="feedbackNote" rows="3" placeholder="哪些动作舒服或不舒服？"></textarea></label>
+      <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveFeedbackBtn" value="default" class="primary-btn">保存记录</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="videoDialog" class="app-dialog">
+    <form method="dialog" id="videoForm">
+      <div class="dialog-heading"><div><p class="eyebrow">手动录入</p><h3>添加训练视频</h3></div><button type="button" value="cancel" class="icon-btn" aria-label="关闭添加视频对话框">×</button></div>
+      <div class="form-grid">
+        <label class="field-label full">YouTube 链接<input id="videoUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." required /><small class="helper">必须是单个视频的 watch、youtu.be、shorts 或 live 链接，不能是搜索页或频道页。</small></label>
+        <label class="field-label">标题<input id="videoTitle" required /><small class="helper">允许与现有视频同名；系统按 YouTube 视频链接识别是否重复。</small></label>
+        <label class="field-label">YouTuber
+          <select id="videoChannel" required>
+            <option value="">请选择 YouTuber</option>
+          </select>
+        </label>
+        <label id="videoCustomChannelField" class="field-label hidden">自定义频道<input id="videoChannelCustom" placeholder="输入频道名称" /></label>
+        <label class="field-label">时长（分钟）<input id="videoDuration" type="number" min="1" value="15" /></label>
+        <label class="field-label">训练重点<select id="videoFocus"><option value="postpartum">产后核心</option><option value="mobility">恢复活动度</option><option value="pilates">垫上 Pilates</option><option value="glutes">臀部稳定</option><option value="meditation">冥想放松</option><option value="cardio">有氧</option></select></label>
+        <label class="field-label">体位<select id="videoPosition"><option value="mat">垫上为主</option><option value="mixed">混合</option><option value="standing">站立为主</option></select></label>
+        <label class="field-label">腹压风险<select id="videoRisk"><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+      </div>
+      <label class="switch-row"><span>包含腹肌／核心训练</span><input id="videoAbTraining" type="checkbox" /></label>
+      <label class="switch-row"><span>包含臀桥、肩桥或骨盆抬高动作</span><input id="videoPelvicInversion" type="checkbox" /></label>
+      <label class="switch-row"><span>确认生理期可用<small>仅在确定不含以上两类动作时勾选</small></span><input id="videoMenstrualEligible" type="checkbox" /></label>
+      <div class="dialog-actions"><button type="button" value="cancel" class="secondary-btn">取消</button><button id="saveVideoBtn" value="default" class="primary-btn">加入视频库</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="editVideoDialog" class="app-dialog wide-dialog">
+    <form method="dialog" id="editVideoForm">
+      <input id="editOriginalVideoId" type="hidden" />
+      <input id="editVideoPublishedAt" type="hidden" />
+      <input id="editVideoThumbnail" type="hidden" />
+      <div class="dialog-heading"><div><p class="eyebrow">视频库维护</p><h3 id="editVideoDialogTitle">搜索并修改视频</h3></div><button value="cancel" class="icon-btn">×</button></div>
+
+      <section class="video-search-box">
+        <label class="field-label">重新搜索 YouTube
+          <div class="search-action-row manual-search-row">
+            <input id="editVideoSearchQuery" type="search" placeholder="输入视频标题、频道或关键词" />
+            <button id="searchVideoInAppBtn" type="button" class="primary-btn hidden">在 App 内搜索</button>
+            <button id="openYouTubeSearchBtn" type="button" class="secondary-btn">打开 YouTube 搜索</button>
+          </div>
+        </label>
+        <p id="editSearchHelper" class="helper">打开 YouTube 搜索，找到正确的单个视频后，把链接粘贴到下方并保存。</p>
+        <div id="editVideoSearchResults" class="search-results"></div>
+      </section>
+
+      <div class="form-grid">
+        <label class="field-label full">单个 YouTube 视频链接<input id="editVideoUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." required /></label>
+        <label class="field-label">标题<input id="editVideoTitle" required /></label>
+        <label class="field-label">频道<input id="editVideoChannel" required /></label>
+        <label class="field-label">时长（分钟）<input id="editVideoDuration" type="number" min="1" value="15" /></label>
+        <label class="field-label">训练重点<select id="editVideoFocus"><option value="postpartum">产后核心</option><option value="mobility">恢复活动度</option><option value="pilates">垫上 Pilates</option><option value="glutes">臀部稳定</option><option value="meditation">冥想放松</option><option value="cardio">有氧</option></select></label>
+        <label class="field-label">体位<select id="editVideoPosition"><option value="mat">垫上为主</option><option value="mixed">混合</option><option value="standing">站立为主</option></select></label>
+        <label class="field-label">腹压风险<select id="editVideoRisk"><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+        <label class="field-label">建议阶段<select id="editVideoLevel"><option value="recovery">恢复期</option><option value="stable">稳定期</option><option value="progress">进阶期</option></select></label>
+      </div>
+      <label class="switch-row"><span>包含大量传统卷腹</span><input id="editVideoCrunch" type="checkbox" /></label>
+      <label class="switch-row"><span>适合腹直肌分离恢复</span><input id="editVideoDR" type="checkbox" /></label>
+      <label class="switch-row"><span>包含腹肌／核心训练</span><input id="editVideoAbTraining" type="checkbox" /></label>
+      <label class="switch-row"><span>包含臀桥、肩桥或骨盆抬高动作</span><input id="editVideoPelvicInversion" type="checkbox" /></label>
+      <label class="switch-row"><span>确认生理期可用<small>只有不含以上两类动作时才会进入生理期排课</small></span><input id="editVideoMenstrualEligible" type="checkbox" /></label>
+      <label class="switch-row"><span>仅作为高强度备用</span><input id="editVideoReserve" type="checkbox" /></label>
+      <label class="field-label">备注<textarea id="editVideoNote" rows="3"></textarea></label>
+      <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveEditedVideoBtn" value="default" class="primary-btn">保存修改</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="reviewDialog" class="app-dialog">
+    <form method="dialog" id="reviewForm">
+      <input id="reviewVideoId" type="hidden" />
+      <div class="dialog-heading"><div><p class="eyebrow">人工审核</p><h3 id="reviewDialogTitle">审核视频</h3></div><button value="cancel" class="icon-btn">×</button></div>
+      <div class="form-grid">
+        <label class="field-label">训练重点<select id="reviewFocus"><option value="postpartum">产后核心</option><option value="mobility">恢复活动度</option><option value="pilates">垫上 Pilates</option><option value="glutes">臀部稳定</option><option value="meditation">冥想放松</option><option value="cardio">有氧</option></select></label>
+        <label class="field-label">体位<select id="reviewPosition"><option value="mat">垫上为主</option><option value="mixed">混合</option><option value="standing">站立为主</option></select></label>
+        <label class="field-label">腹压风险<select id="reviewRisk"><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+        <label class="field-label">建议阶段<select id="reviewLevel"><option value="recovery">恢复期</option><option value="stable">稳定期</option><option value="progress">进阶期</option></select></label>
+      </div>
+      <label class="switch-row"><span>包含大量传统卷腹</span><input id="reviewCrunch" type="checkbox" /></label>
+      <label class="switch-row"><span>适合腹直肌分离恢复</span><input id="reviewDR" type="checkbox" /></label>
+      <label class="switch-row"><span>包含腹肌／核心训练</span><input id="reviewAbTraining" type="checkbox" /></label>
+      <label class="switch-row"><span>包含臀桥、肩桥或骨盆抬高动作</span><input id="reviewPelvicInversion" type="checkbox" /></label>
+      <label class="switch-row"><span>确认生理期可用</span><input id="reviewMenstrualEligible" type="checkbox" /></label>
+      <label class="field-label">审核备注<textarea id="reviewNote" rows="3"></textarea></label>
+      <div class="dialog-actions"><button id="rejectVideoBtn" value="default" class="danger-btn">不纳入</button><button id="approveVideoBtn" value="default" class="primary-btn">批准进入视频库</button></div>
+    </form>
+  </dialog>
+
+
+  <dialog id="ipadInstallDialog" class="app-dialog ipad-install-dialog">
+    <form method="dialog">
+      <div class="dialog-heading"><div><p class="eyebrow">iPad 安装</p><h3>添加到主屏幕</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="ipad-install-steps">
+        <div><strong>1</strong><span>请用 Safari 打开这个 App 的网址。</span></div>
+        <div><strong>2</strong><span>点击 Safari 顶部的“分享”按钮。</span></div>
+        <div><strong>3</strong><span>选择“添加到主屏幕”，再点击“添加”。</span></div>
+      </div>
+      <p class="period-safety-note">从主屏幕打开后，App 会以独立窗口运行。点击训练视频的“播放”或封面时，会使用 YouTube 的通用链接；iPad 已安装 YouTube App 时会自动切换到 YouTube App，否则打开网页版。</p>
+      <div class="dialog-actions"><button value="cancel" class="primary-btn">知道了</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
