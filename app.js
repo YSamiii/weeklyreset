@@ -1,7 +1,9 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 23;
+const APP_DATA_VERSION = 31;
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
+const RETIRED_CHANNEL_NAMES = new Set(['jessica valant pilates', 'jessica valant']);
+function isRetiredChannelName(name = '') { return RETIRED_CHANNEL_NAMES.has(String(name || '').trim().toLowerCase()); }
 
 const focusLabels = {
   postpartum: '产后核心', mobility: '恢复活动度', pilates: '垫上 Pilates',
@@ -18,7 +20,6 @@ const menstrualSafetyLabels = { safe: '生理期可用', abs: '含腹肌训练',
 
 const defaultChannels = [
   { name: 'Pregnancy and Postpartum TV', id: '', usage: 'primary' },
-  { name: 'Jessica Valant Pilates', id: '', usage: 'primary' },
   { name: 'Move With Nicole', id: '', usage: 'secondary' },
   { name: 'Mady Morrison', id: '', usage: 'primary' },
   { name: 'Dr. Sara Duvall', id: '', usage: 'primary' },
@@ -2593,6 +2594,10 @@ const existingSeedIds = new Set(sampleVideos.map(video => String(video.id)));
 sampleVideos.push(...pregnancyPostpartumExpansion.filter(video => !existingSeedIds.has(String(video.id))));
 const expandedSeedIds = new Set(sampleVideos.map(video => String(video.id)));
 sampleVideos.push(...existingChannelExpansion.filter(video => !expandedSeedIds.has(String(video.id))));
+// 3.1: Jessica Valant 已按用户偏好从内置库彻底移除。
+for (let i = sampleVideos.length - 1; i >= 0; i--) {
+  if (isRetiredChannelName(sampleVideos[i]?.channel)) sampleVideos.splice(i, 1);
+}
 const verifiedSeedVideoIds = new Set(sampleVideos.map(video => String(video.id)));
 const verifiedSeedById = new Map(sampleVideos.map(video => [String(video.id), video]));
 sampleVideos.forEach(video => {
@@ -2635,6 +2640,7 @@ function defaultState() {
     },
     plan: [],
     plansByWeek: {},
+    planMetaByWeek: {},
     feedback: [],
     weekPreferences: {
       weekStart: startOfPlanWeek(),
@@ -2676,7 +2682,7 @@ let selectedWeekStart = startOfPlanWeek();
 let lastKnownTorontoDate = torontoDate();
 
 function mergeDefaultChannels(channels = []) {
-  const existing = Array.isArray(channels) ? channels.map(c => {
+  const existing = Array.isArray(channels) ? channels.filter(c => !isRetiredChannelName(c?.name)).map(c => {
     const item = { usage: 'primary', ...c };
     if (/^dr\.? sarah duvall$/i.test(String(item.name || '').trim())) item.name = 'Dr. Sara Duvall';
     return item;
@@ -2700,7 +2706,7 @@ function availableChannelNames() {
   const add = value => {
     const name = String(value || '').trim();
     const key = name.toLowerCase();
-    if (!name || seen.has(key)) return;
+    if (!name || isRetiredChannelName(name) || seen.has(key)) return;
     seen.add(key); names.push(name);
   };
   defaultChannels.forEach(channel => add(channel.name));
@@ -2768,6 +2774,7 @@ function loadState() {
       ...parsed,
       menstrual: { ...defaults.menstrual, ...(parsed.menstrual || {}) },
       plansByWeek: { ...(parsed.plansByWeek || {}) },
+      planMetaByWeek: { ...(parsed.planMetaByWeek || {}) },
       weekPreferences: { ...defaults.weekPreferences, ...(parsed.weekPreferences || {}) },
       weekPreferencesByStart: { ...(parsed.weekPreferencesByStart || {}) },
       libraryPreferences: { ...defaults.libraryPreferences, ...(parsed.libraryPreferences || {}) },
@@ -2782,6 +2789,8 @@ function loadState() {
     merged.settings.channels = parsedVersion < APP_DATA_VERSION
       ? mergeDefaultChannels(savedChannels)
       : savedChannels.map(channel => ({ usage:'primary', ...channel }));
+    // 3.1: 退休频道无论数据来自旧版本还是备份，都不再回到候选频道。
+    merged.settings.channels = (merged.settings.channels || []).filter(channel => !isRetiredChannelName(channel?.name));
     if (parsedVersion < 13) {
       const removedV12Channels = new Set(['bodyfit by amy', 'core exercise solutions']);
       merged.settings.channels = merged.settings.channels.filter(channel => !removedV12Channels.has(String(channel.name || '').trim().toLowerCase()));
@@ -2804,6 +2813,7 @@ function loadState() {
     });
     if (parsedVersion < APP_DATA_VERSION) {
       const personalVideos = (parsed.videos || []).filter(v =>
+        !isRetiredChannelName(v.channel) &&
         !v.demo &&
         !String(v.id || '').startsWith('demo-') &&
         !(v.starter && RETIRED_SEED_VIDEO_IDS.has(String(v.id || '')))
@@ -2884,7 +2894,11 @@ function loadState() {
         verificationStatus,
         verificationNote
       });
-    });
+    }).filter(video => !isRetiredChannelName(video.channel));
+    if (isRetiredChannelName(merged.libraryPreferences.channel)) merged.libraryPreferences.channel = 'all';
+    for (const pref of Object.values(merged.weekPreferencesByStart || {})) {
+      if (Array.isArray(pref?.excludedChannels)) pref.excludedChannels = pref.excludedChannels.filter(name => !isRetiredChannelName(name));
+    }
     merged.libraryAudit = { ...defaults.libraryAudit, running:false, pending:0 };
     const loadedVideoMap = new Map((merged.videos || []).map(video => [String(video.id), video]));
     for (const plan of Object.values(merged.plansByWeek || {})) {
@@ -2988,6 +3002,64 @@ const dayTemplates = [
   { day: '周五', type:'pilates', label:'主训练或恢复', target:20 }
 ];
 
+function daysBetweenIso(a, b) {
+  if (!a || !b) return Infinity;
+  return Math.round((parseLocalDate(b) - parseLocalDate(a)) / 86400000);
+}
+function videoRotationStats(targetWeekStart = startOfPlanWeek()) {
+  const stats = new Map((state.videos || []).map(video => [String(video.id), { plannedCount:0, completedCount:0, lastPlanned:'', lastCompleted:'' }]));
+  const touch = id => {
+    id = String(id || '');
+    if (!id) return null;
+    if (!stats.has(id)) stats.set(id, { plannedCount:0, completedCount:0, lastPlanned:'', lastCompleted:'' });
+    return stats.get(id);
+  };
+  for (const [weekStart, plan] of Object.entries(state.plansByWeek || {})) {
+    if (!Array.isArray(plan) || weekStart >= targetWeekStart) continue;
+    for (const item of plan) {
+      if (!item?.videoId || !item.date || item.date >= targetWeekStart) continue;
+      const row = touch(item.videoId); if (!row) continue;
+      row.plannedCount += 1;
+      if (!row.lastPlanned || item.date > row.lastPlanned) row.lastPlanned = item.date;
+    }
+  }
+  for (const record of state.feedback || []) {
+    if (!record?.videoId || !record.date || record.date >= targetWeekStart || !['completed','partial','swapped'].includes(record.status)) continue;
+    const row = touch(record.videoId); if (!row) continue;
+    row.completedCount += 1;
+    if (!row.lastCompleted || record.date > row.lastCompleted) row.lastCompleted = record.date;
+  }
+  return stats;
+}
+function recentRotationBlockedIds(targetWeekStart, days = 14) {
+  const stats = videoRotationStats(targetWeekStart);
+  const blocked = new Set();
+  for (const [id, row] of stats) {
+    const last = [row.lastPlanned, row.lastCompleted].filter(Boolean).sort().at(-1) || '';
+    if (last && daysBetweenIso(last, targetWeekStart) <= days) blocked.add(id);
+  }
+  return blocked;
+}
+function rotationScoreAdjustment(video, targetWeekStart, stats) {
+  const row = stats?.get(String(video.id)) || { plannedCount:0, completedCount:0, lastPlanned:'', lastCompleted:'' };
+  const last = [row.lastPlanned, row.lastCompleted].filter(Boolean).sort().at(-1) || '';
+  const age = last ? daysBetweenIso(last, targetWeekStart) : Infinity;
+  let adjustment = 0;
+  if (!last) adjustment += 30;                // 从未安排/完成过的视频优先探索
+  else if (age <= 30) adjustment -= 32;       // 30 天内显著降权
+  else if (age <= 60) adjustment -= 12;
+  else adjustment += Math.min(12, Math.floor(age / 30));
+  adjustment -= row.plannedCount * 2.5;
+  adjustment -= row.completedCount * 4;
+  return adjustment;
+}
+function deterministicTieBreak(videoId, weekStart) {
+  const text = `${weekStart}|${videoId}`;
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) { hash ^= text.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+  return (hash >>> 0) / 4294967295;
+}
+
 function videoScore(video, template, mode, usedIds, assessment, planContext = {}) {
   let score = 0;
   const period = planContext.period || { active:false };
@@ -3018,6 +3090,8 @@ function videoScore(video, template, mode, usedIds, assessment, planContext = {}
     if (video.focus === 'cardio') score -= period.gentleOnly ? 60 : 15;
     if (video.level === 'progress') score -= 70;
   }
+  if (planContext.weekStart && planContext.rotationStats) score += rotationScoreAdjustment(video, planContext.weekStart, planContext.rotationStats);
+  if (planContext.weekStart) score += deterministicTieBreak(video.id, planContext.weekStart) * 1.5;
   return score;
 }
 
@@ -3065,14 +3139,17 @@ function buildWeeklyPlan(weekStart = startOfPlanWeek(), options = {}) {
   assessment.mode = determineMode(assessment);
   const approved = approvedPlanVideos(weekStart);
   const blockedVideoIds = options.blockedVideoIds instanceof Set
-    ? options.blockedVideoIds
+    ? new Set(options.blockedVideoIds)
     : new Set(options.blockedVideoIds || []);
+  const rotationStats = videoRotationStats(weekStart);
+  // 除相邻两周去重外，默认硬性避开过去 14 天已安排或完成的视频。
+  for (const id of recentRotationBlockedIds(weekStart, 14)) blockedVideoIds.add(id);
   const used = new Set(blockedVideoIds);
   return dayTemplates.map((baseTemplate, index) => {
     const date = dates[index];
     const period = menstrualContextForDate(date);
     const template = menstrualTemplateForDay(baseTemplate, period);
-    const planContext = { date, period };
+    const planContext = { date, period, weekStart, rotationStats };
     const chosen = chooseUniqueVideo(approved, template, used, assessment, index, planContext);
     if (chosen) used.add(chosen.id);
     return {
@@ -3088,6 +3165,14 @@ function buildWeeklyPlan(weekStart = startOfPlanWeek(), options = {}) {
       generatedAt: new Date().toISOString()
     };
   });
+}
+
+function markPlanLocked(weekStart, reason = 'generated') {
+  if (!state.planMetaByWeek || typeof state.planMetaByWeek !== 'object') state.planMetaByWeek = {};
+  state.planMetaByWeek[weekStart] = { locked:true, reason, updatedAt:new Date().toISOString() };
+}
+function isPlanLocked(weekStart) {
+  return !!state.planMetaByWeek?.[weekStart]?.locked && planForWeek(weekStart).length === 7;
 }
 
 function planVideoIds(weekStart) {
@@ -3116,11 +3201,11 @@ function generatePlan(weekStart = selectedWeekStart) {
   let plan;
   if (weekStart === current) {
     plan = buildWeeklyPlan(current);
-    setPlanForWeek(current, plan);
-    setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds: planVideoIds(current) }));
+    setPlanForWeek(current, plan); markPlanLocked(current, 'manual-regenerate');
+    setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds: planVideoIds(current) })); markPlanLocked(next, 'paired-with-current');
   } else {
     plan = buildPlanWithCrossWeekRules(weekStart);
-    setPlanForWeek(weekStart, plan);
+    setPlanForWeek(weekStart, plan); markPlanLocked(weekStart, 'manual-regenerate');
   }
   saveState(); renderAll();
   const blankDays = plan.filter(item => !item.videoId).length;
@@ -3136,8 +3221,8 @@ function generatePlan(weekStart = selectedWeekStart) {
 }
 function regenerateCurrentAndNext() {
   const { current, next } = currentAndNextWeekStarts();
-  setPlanForWeek(current, buildWeeklyPlan(current));
-  setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds: planVideoIds(current) }));
+  setPlanForWeek(current, buildWeeklyPlan(current)); markPlanLocked(current, 'state-change');
+  setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds: planVideoIds(current) })); markPlanLocked(next, 'state-change');
   saveState(); renderAll();
 }
 
@@ -3190,6 +3275,7 @@ function createFeedbackRecordId() {
 function normalizedChannelName(name = '') { return String(name).trim().toLowerCase(); }
 function ensureWeekCollections() {
   if (!state.plansByWeek || typeof state.plansByWeek !== 'object') state.plansByWeek = {};
+  if (!state.planMetaByWeek || typeof state.planMetaByWeek !== 'object') state.planMetaByWeek = {};
   if (!state.weekPreferencesByStart || typeof state.weekPreferencesByStart !== 'object') state.weekPreferencesByStart = {};
 }
 function weekPreferencesFor(weekStart = selectedWeekStart) {
@@ -3364,23 +3450,81 @@ function bindDialogCloseControls() {
   });
 }
 
+function fillMissingPlanSlots(weekStart) {
+  const existing = planForWeek(weekStart);
+  if (!Array.isArray(existing) || !existing.length) return false;
+  const dates = getWeekDates(weekStart);
+  const assessment = state.assessment;
+  assessment.mode = determineMode(assessment);
+  const approved = approvedPlanVideos(weekStart);
+  const used = new Set(existing.map(item => item?.videoId).filter(Boolean));
+  const { current, next } = currentAndNextWeekStarts();
+  if (weekStart === current) for (const id of planVideoIds(next)) used.add(id);
+  if (weekStart === next) for (const id of planVideoIds(current)) used.add(id);
+  for (const id of recentRotationBlockedIds(weekStart, 14)) used.add(id);
+  const rotationStats = videoRotationStats(weekStart);
+  let changed = false;
+  const repaired = existing.map((item, index) => {
+    if (item?.videoId) return item;
+    const date = item?.date || dates[index];
+    const baseTemplate = dayTemplates[index] || dayTemplates[0];
+    const period = menstrualContextForDate(date);
+    const template = menstrualTemplateForDay(baseTemplate, period);
+    const chosen = chooseUniqueVideo(approved, template, used, assessment, index, { date, period, weekStart, rotationStats });
+    if (!chosen) return { ...item, date, day:baseTemplate.day, category:template.label, rationale:buildRationale(template, null, assessment, index, {date,period,weekStart,rotationStats}) };
+    used.add(chosen.id); changed = true;
+    return { ...item, date, day:baseTemplate.day, category:template.label, videoId:chosen.id, videoSnapshot:{id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,focus:chosen.focus,position:chosen.position,risk:chosen.risk,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail}, periodDay:period.active?period.day:0, rationale:buildRationale(template, chosen, assessment, index, {date,period,weekStart,rotationStats}), generatedAt:new Date().toISOString() };
+  });
+  if (changed) { setPlanForWeek(weekStart, repaired); markPlanLocked(weekStart, 'retired-channel-repair'); }
+  return changed;
+}
+function repairRetiredChannelSlots() {
+  state.videos = (state.videos || []).filter(video => !isRetiredChannelName(video.channel));
+  state.settings.channels = (state.settings?.channels || []).filter(channel => !isRetiredChannelName(channel.name));
+  const current = startOfPlanWeek();
+  for (const [weekStart, plan] of Object.entries(state.plansByWeek || {})) {
+    if (!Array.isArray(plan) || weekStart < current) continue; // 历史快照保留
+    let changed = false;
+    state.plansByWeek[weekStart] = plan.map(item => {
+      const snapshotChannel = item?.videoSnapshot?.channel || '';
+      const live = (state.videos || []).find(video => String(video.id) === String(item?.videoId));
+      if (isRetiredChannelName(snapshotChannel) || (!live && item?.videoId && isRetiredChannelName(snapshotChannel))) {
+        changed = true;
+        return { ...item, videoId:null, videoSnapshot:null, rationale:'Jessica Valant 已从视频库移除，本日将从其他频道补位。' };
+      }
+      return item;
+    });
+    if (changed) fillMissingPlanSlots(weekStart);
+  }
+}
+function ensureCurrentAndNextPlans() {
+  const current = startOfPlanWeek();
+  const next = addDays(current, 7);
+  if (!planForWeek(current).length) { setPlanForWeek(current, buildWeeklyPlan(current)); markPlanLocked(current, 'auto-first-create'); }
+  if (!planForWeek(next).length) { setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds:planVideoIds(current) })); markPlanLocked(next, 'auto-first-create'); }
+}
+
 function renderAll() {
   ensureWeekCollections();
   const current = startOfPlanWeek();
-  if (!planForWeek(current).length || planForWeek(current)[0]?.date !== current) generatePlanSilently(current);
   const next = addDays(current, 7);
-  if (!planForWeek(next).length || planForWeek(next)[0]?.date !== next) generatePlanSilently(next);
+  ensureCurrentAndNextPlans();
   state.plan = planForWeek(current);
   state.weekPreferences = { weekStart: current, excludedChannels: [...weekPreferencesFor(current).excludedChannels] };
   renderHeader(); renderHome(); renderWeek(); renderLibrary(); renderReview(); renderInsights(); renderSettings();
 }
 function generatePlanSilently(weekStart = startOfPlanWeek()) {
   const { current, next } = currentAndNextWeekStarts();
+  // 自动渲染只补“尚不存在”的计划，绝不重算已经生成的周计划。
   if (weekStart === current) {
-    setPlanForWeek(current, buildWeeklyPlan(current));
-    setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds: planVideoIds(current) }));
-  } else {
-    setPlanForWeek(weekStart, buildPlanWithCrossWeekRules(weekStart));
+    if (!planForWeek(current).length) {
+      setPlanForWeek(current, buildWeeklyPlan(current)); markPlanLocked(current, 'auto-first-create');
+    }
+    if (!planForWeek(next).length) {
+      setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds: planVideoIds(current) })); markPlanLocked(next, 'auto-first-create');
+    }
+  } else if (!planForWeek(weekStart).length) {
+    setPlanForWeek(weekStart, buildPlanWithCrossWeekRules(weekStart)); markPlanLocked(weekStart, 'auto-first-create');
   }
   saveState();
 }
@@ -4079,7 +4223,7 @@ async function syncYouTube() {
 function saveSettingsFromForm() {
   const rows=[...document.querySelectorAll('.channel-row')];
   state.settings.apiKey=document.getElementById('apiKeyInput').value.trim();
-  state.settings.channels=rows.map(row=>({name:row.querySelector('[data-channel-name]').value.trim(),id:row.querySelector('[data-channel-id]').value.trim(),usage:row.querySelector('[data-channel-usage]')?.value||'primary'})).filter(c=>c.name||c.id);
+  state.settings.channels=rows.map(row=>({name:row.querySelector('[data-channel-name]').value.trim(),id:row.querySelector('[data-channel-id]').value.trim(),usage:row.querySelector('[data-channel-usage]')?.value||'primary'})).filter(c=>(c.name||c.id)&&!isRetiredChannelName(c.name));
   state.settings.preferMat=document.getElementById('preferMat').checked;
   state.settings.avoidCrunch=document.getElementById('avoidCrunch').checked;
   state.settings.autoDowngrade=document.getElementById('autoDowngrade').checked;
@@ -4122,7 +4266,46 @@ async function exportData() {
   showToast('已导出完整 JSON 备份');
 }
 function importData(file) {
-  const reader=new FileReader(); reader.onload=()=>{try{const parsed=JSON.parse(reader.result); if(!parsed.videos||!parsed.settings)throw new Error('文件结构不正确');parsed.version=APP_DATA_VERSION;parsed.settings.channels=mergeDefaultChannels(parsed.settings.channels||[]);parsed.plansByWeek=parsed.plansByWeek&&typeof parsed.plansByWeek==='object'?parsed.plansByWeek:{};if(Array.isArray(parsed.plan)&&parsed.plan.length){const importedWeek=startOfPlanWeek(parsed.plan[0].date||torontoDate());if(!parsed.plansByWeek[importedWeek])parsed.plansByWeek[importedWeek]=parsed.plan;}parsed.weekPreferencesByStart=parsed.weekPreferencesByStart&&typeof parsed.weekPreferencesByStart==='object'?parsed.weekPreferencesByStart:{};const importedPreferenceWeek=parsed.weekPreferences?.weekStart||startOfPlanWeek();if(!parsed.weekPreferencesByStart[importedPreferenceWeek])parsed.weekPreferencesByStart[importedPreferenceWeek]={excludedChannels:Array.isArray(parsed.weekPreferences?.excludedChannels)?parsed.weekPreferences.excludedChannels:[]};parsed.weekPreferences={weekStart:startOfPlanWeek(),excludedChannels:Array.isArray(parsed.weekPreferencesByStart[startOfPlanWeek()]?.excludedChannels)?parsed.weekPreferencesByStart[startOfPlanWeek()].excludedChannels:[]};parsed.libraryPreferences={channel:'all',focus:'all',position:'all',sort:'default',...(parsed.libraryPreferences||{})};parsed.libraryAudit={...defaultState().libraryAudit,...(parsed.libraryAudit||{}),running:false};parsed.menstrual={...defaultState().menstrual,...(parsed.menstrual||{})};parsed.videos=(parsed.videos||[]).filter(video=>!(video.starter&&RETIRED_SEED_VIDEO_IDS.has(String(video.id||'')))).map(video=>{const seed=video.starter?verifiedSeedById.get(String(video.id||'')):null;const status=seed?'curated':(['verified','corrected','curated','manual'].includes(video.verificationStatus)?video.verificationStatus:'manual');return {...(seed||{}),...video,...(seed?{title:seed.title,channel:seed.channel,url:seed.url,thumbnail:seed.thumbnail}:{}),verificationStatus:status,verifiedAt:seed?null:(video.verifiedAt||null),verifiedChannel:seed?'':(video.verifiedChannel||''),linkAuditStatus:seed?'curated':(video.linkAuditStatus||'manual'),linkAuditedAt:seed?null:(video.linkAuditedAt||null),originalChannel:video.originalChannel||'',originalTitle:video.originalTitle||'',verificationNote:/^本次未能核实/.test(String(video.verificationNote||''))?'':(video.verificationNote||''),autoPlanEligible:video.autoPlanEligible!==false,needsReview:!!video.needsReview&&status==='corrected'};});state=parsed;selectedWeekStart=startOfPlanWeek();regenerateCurrentAndNext();showToast('数据已恢复；本周与下周已按跨周不重复规则重新安排');}catch(e){showToast(`导入失败：${e.message}`);}};reader.readAsText(file);
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed.videos || !parsed.settings) throw new Error('文件结构不正确');
+      parsed.version = APP_DATA_VERSION;
+      parsed.settings = { ...defaultState().settings, ...(parsed.settings || {}) };
+      parsed.settings.channels = mergeDefaultChannels(parsed.settings.channels || []).filter(channel => !isRetiredChannelName(channel.name));
+      parsed.plansByWeek = parsed.plansByWeek && typeof parsed.plansByWeek === 'object' ? parsed.plansByWeek : {};
+      parsed.planMetaByWeek = parsed.planMetaByWeek && typeof parsed.planMetaByWeek === 'object' ? parsed.planMetaByWeek : {};
+      if (Array.isArray(parsed.plan) && parsed.plan.length) {
+        const importedWeek = startOfPlanWeek(parsed.plan[0].date || torontoDate());
+        if (!parsed.plansByWeek[importedWeek]) parsed.plansByWeek[importedWeek] = parsed.plan;
+      }
+      parsed.weekPreferencesByStart = parsed.weekPreferencesByStart && typeof parsed.weekPreferencesByStart === 'object' ? parsed.weekPreferencesByStart : {};
+      const importedPreferenceWeek = parsed.weekPreferences?.weekStart || startOfPlanWeek();
+      if (!parsed.weekPreferencesByStart[importedPreferenceWeek]) parsed.weekPreferencesByStart[importedPreferenceWeek] = { excludedChannels: Array.isArray(parsed.weekPreferences?.excludedChannels) ? parsed.weekPreferences.excludedChannels : [] };
+      for (const pref of Object.values(parsed.weekPreferencesByStart)) if (Array.isArray(pref?.excludedChannels)) pref.excludedChannels = pref.excludedChannels.filter(name => !isRetiredChannelName(name));
+      parsed.weekPreferences = { weekStart:startOfPlanWeek(), excludedChannels:Array.isArray(parsed.weekPreferencesByStart[startOfPlanWeek()]?.excludedChannels) ? parsed.weekPreferencesByStart[startOfPlanWeek()].excludedChannels : [] };
+      parsed.libraryPreferences = { channel:'all', focus:'all', position:'all', sort:'default', ...(parsed.libraryPreferences || {}) };
+      if (isRetiredChannelName(parsed.libraryPreferences.channel)) parsed.libraryPreferences.channel = 'all';
+      parsed.libraryAudit = { ...defaultState().libraryAudit, ...(parsed.libraryAudit || {}), running:false };
+      parsed.menstrual = { ...defaultState().menstrual, ...(parsed.menstrual || {}) };
+      parsed.videos = (parsed.videos || [])
+        .filter(video => !isRetiredChannelName(video.channel))
+        .filter(video => !(video.starter && RETIRED_SEED_VIDEO_IDS.has(String(video.id || ''))))
+        .map(video => {
+          const seed = video.starter ? verifiedSeedById.get(String(video.id || '')) : null;
+          const status = seed ? 'curated' : (['verified','corrected','curated','manual'].includes(video.verificationStatus) ? video.verificationStatus : 'manual');
+          return normalizeMenstrualSafety({ ...(seed || {}), ...video, ...(seed ? { title:seed.title,channel:seed.channel,url:seed.url,thumbnail:seed.thumbnail } : {}), verificationStatus:status, verifiedAt:seed?null:(video.verifiedAt||null), verifiedChannel:seed?'':(video.verifiedChannel||''), linkAuditStatus:seed?'curated':(video.linkAuditStatus||'manual'), linkAuditedAt:seed?null:(video.linkAuditedAt||null), originalChannel:video.originalChannel||'', originalTitle:video.originalTitle||'', verificationNote:/^本次未能核实/.test(String(video.verificationNote||''))?'':(video.verificationNote||''), autoPlanEligible:video.autoPlanEligible!==false, needsReview:!!video.needsReview&&status==='corrected' });
+        });
+      state = parsed;
+      selectedWeekStart = startOfPlanWeek();
+      repairRetiredChannelSlots();
+      ensureCurrentAndNextPlans();
+      saveState(); renderAll();
+      showToast('数据已恢复；原有周计划保持锁定，仅退休频道位置会被替换');
+    } catch (e) { showToast(`导入失败：${e.message}`); }
+  };
+  reader.readAsText(file);
 }
 
 function bindSafetyCheckboxGroup(abId, inversionId, eligibleId) {
@@ -4279,14 +4462,15 @@ function bindEvents() {
     if(!url){showToast('请粘贴单个 YouTube 视频的链接，不要使用搜索页或频道页');return;}
     const id=extractYouTubeVideoId(url);
     if(state.videos.some(v=>v.id===id)){showToast('这个 YouTube 视频链接已经在视频库中');return;}
+    if (isRetiredChannelName(channel)) { showToast('Jessica Valant 已从候选频道中移除'); return; }
     const reserveOnly=/heather robertson/i.test(channel);
     state.videos.push({id,title,channel,url,duration:Number(document.getElementById('videoDuration').value||15),focus:document.getElementById('videoFocus').value,position:document.getElementById('videoPosition').value,risk:document.getElementById('videoRisk').value,level:reserveOnly?'progress':'stable',drFriendly:document.getElementById('videoRisk').value==='low',crunchHeavy:false,abTraining:document.getElementById('videoAbTraining').checked,pelvicInversion:document.getElementById('videoPelvicInversion').checked,menstrualEligible:document.getElementById('videoMenstrualEligible').checked&&!document.getElementById('videoAbTraining').checked&&!document.getElementById('videoPelvicInversion').checked,reserveOnly,approved:true,rejected:false,demo:false,thumbnail:youtubeThumbnail(id),publishedAt:new Date().toISOString(),addedAt:new Date().toISOString(),note:reserveOnly?'手动添加；高强度备用频道':'手动添加',verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
-    saveState();document.getElementById('videoDialog').close();document.getElementById('videoForm').reset();regenerateCurrentAndNext();showToast('已加入视频库并更新可用计划');
+    saveState();document.getElementById('videoDialog').close();document.getElementById('videoForm').reset();renderAll();showToast('已加入视频库；现有周计划保持不变');
   });
   document.getElementById('approveVideoBtn').addEventListener('click',e=>{
     e.preventDefault(); const id=document.getElementById('reviewVideoId').value; const pending=state.pending.find(v=>v.id===id); if(!pending)return;
     state.videos.push({...pending,focus:document.getElementById('reviewFocus').value,position:document.getElementById('reviewPosition').value,risk:document.getElementById('reviewRisk').value,level:document.getElementById('reviewLevel').value,crunchHeavy:document.getElementById('reviewCrunch').checked,drFriendly:document.getElementById('reviewDR').checked,abTraining:document.getElementById('reviewAbTraining').checked,pelvicInversion:document.getElementById('reviewPelvicInversion').checked,menstrualEligible:document.getElementById('reviewMenstrualEligible').checked&&!document.getElementById('reviewAbTraining').checked&&!document.getElementById('reviewPelvicInversion').checked,reserveOnly:pending.sourceUsage==='reserve',addedAt:pending.addedAt||new Date().toISOString(),note:document.getElementById('reviewNote').value.trim(),approved:true,rejected:false,verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
-    pending.approved=true;saveState();document.getElementById('reviewDialog').close();regenerateCurrentAndNext();showToast('已批准进入视频库并更新可用计划');
+    pending.approved=true;saveState();document.getElementById('reviewDialog').close();renderAll();showToast('已批准进入视频库；现有周计划保持不变');
   });
   document.getElementById('rejectVideoBtn').addEventListener('click',e=>{e.preventDefault();const id=document.getElementById('reviewVideoId').value;const pending=state.pending.find(v=>v.id===id);if(pending)pending.rejected=true;saveState();document.getElementById('reviewDialog').close();renderAll();showToast('已标记为不纳入');});
   document.getElementById('addChannelBtn').addEventListener('click',()=>{saveSettingsFromForm();state.settings.channels.push({name:'',id:'',usage:'primary'});renderSettings();});
@@ -4387,5 +4571,6 @@ window.addEventListener('appinstalled',()=>showToast('已安装到主屏幕'));
 
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.error));}
 
+repairRetiredChannelSlots();
 bindEvents();hydrateAssessmentDialog();hydrateMenstrualDialog();renderAll();updateInstallButtonForDevice();
 setTimeout(() => clearLegacyVerificationErrors(), 300);
