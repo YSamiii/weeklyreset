@@ -536,3 +536,14 @@ body { background: radial-gradient(circle at 80% 0%, rgba(225,233,226,.65), tran
   .day-card { grid-template-columns:58px 155px minmax(0,1fr); }
   .video-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+/* 3.2 video preference controls */
+.video-preference-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; }
+.preference-btn { min-height:39px; border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--text); font:inherit; font-weight:700; cursor:pointer; }
+.preference-btn.favorite-btn.active { background:#f7e7e8; border-color:#d9a8ad; color:#8d3f49; }
+.preference-btn.dislike-btn.active { background:#ececeb; border-color:#b8b8b3; color:#55554f; }
+.video-card.video-favorite { box-shadow:0 0 0 2px rgba(181,112,121,.15), var(--shadow); }
+.video-card.video-disliked { opacity:.72; }
+.preference-favorite-tag { background:#f7e7e8!important; color:#8d3f49!important; }
+.preference-dislike-tag { background:#ececeb!important; color:#5c5b55!important; }
+.knee-friendly-tag { background:#e9f2ee!important; color:#356252!important; }

@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 31;
+const APP_DATA_VERSION = 33;
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
 const RETIRED_CHANNEL_NAMES = new Set(['jessica valant pilates', 'jessica valant']);
@@ -84,6 +84,25 @@ function videoLinkMarkup(video, label = '播放', className = 'icon-action') {
 
 function videoSafetyText(video = {}) {
   return `${video.title || ''} ${video.note || ''} ${video.description || ''}`.toLowerCase();
+}
+function inferKneeFriendly(video = {}) {
+  if (typeof video.kneeFriendly === 'boolean') return video.kneeFriendly;
+  const text = videoSafetyText(video);
+  return /knee[ -]?friendly|sensitive knees?|easy on (?:the )?knees?|no squats?(?:[^a-z]+|.*)no lunges?|no lunges?(?:[^a-z]+|.*)no squats?|no kneeling/i.test(text);
+}
+function videoPreference(video = {}) {
+  return ['favorite','dislike'].includes(video.preference) ? video.preference : 'neutral';
+}
+function setVideoPreference(videoId, preference = 'neutral') {
+  const video = state.videos.find(item => String(item.id) === String(videoId));
+  if (!video) return;
+  const next = ['favorite','dislike'].includes(preference) ? preference : 'neutral';
+  video.preference = videoPreference(video) === next ? 'neutral' : next;
+  saveState();
+  renderLibrary();
+  if (video.preference === 'favorite') showToast('已标记喜欢：未来排课会适度提高优先级，但仍遵守跨周与近期去重。');
+  else if (video.preference === 'dislike') showToast('已标记不喜欢：未来自动排课将不再选择这条视频。当前已锁定计划不会自动改变。');
+  else showToast('已取消视频偏好标记');
 }
 function inferAbTraining(video = {}) {
   if (typeof video.abTraining === 'boolean') return video.abTraining;
@@ -2590,6 +2609,56 @@ const existingChannelExpansion = [
   }
 ];
 
+const kneeFriendlyExpansion = [
+  {
+    id: "v3B2vk5THOU",
+    title: "35 MIN PILATES WORKOUT || Classical Mat Pilates Inspired (Knee & Wrist Friendly)",
+    channel: "Move With Nicole", duration: 35, focus: "pilates", position: "mat", risk: "medium", level: "stable",
+    drFriendly: false, crunchHeavy: false, reserveOnly: false, approved: true, rejected: false, demo: false, starter: true, kneeFriendly: true,
+    url: youtubeWatchUrl("v3B2vk5THOU"), thumbnail: youtubeThumbnail("v3B2vk5THOU"), publishedAt: "",
+    note: "膝盖友好候选：Move With Nicole 标题明确标注 Knee & Wrist Friendly；垫上训练可在膝盖不适时优先考虑。"
+  },
+  {
+    id: "1jWkjpSmQhc",
+    title: "15 MIN BOOTY BAND WORKOUT (Knee Friendly) || At-Home Pilates",
+    channel: "Move With Nicole", duration: 15, focus: "glutes", position: "mat", risk: "medium", level: "stable",
+    drFriendly: false, crunchHeavy: false, reserveOnly: false, approved: true, rejected: false, demo: false, starter: true, kneeFriendly: true,
+    pelvicInversion: true, menstrualEligible: false,
+    url: youtubeWatchUrl("1jWkjpSmQhc"), thumbnail: youtubeThumbnail("1jWkjpSmQhc"), publishedAt: "",
+    note: "膝盖友好候选：低冲击臀部训练；可能包含臀桥/骨盆抬高，因此生理期不自动安排。"
+  },
+  {
+    id: "KQ6b-_dC1Mo",
+    title: "35 MIN ABS & BOOTY WORKOUT || Mat Pilates (No Squats & No Equipment)",
+    channel: "Move With Nicole", duration: 35, focus: "pilates", position: "mat", risk: "medium", level: "stable",
+    drFriendly: false, crunchHeavy: false, reserveOnly: false, approved: true, rejected: false, demo: false, starter: true, kneeFriendly: true,
+    abTraining: true, pelvicInversion: true, menstrualEligible: false,
+    url: youtubeWatchUrl("KQ6b-_dC1Mo"), thumbnail: youtubeThumbnail("KQ6b-_dC1Mo"), publishedAt: "",
+    note: "膝盖友好候选：视频说明为低冲击、无深蹲/平板；含腹肌与臀部训练，生理期及腹部压力不适时不自动安排。"
+  },
+  {
+    id: "VVahExTVlt4",
+    title: "Postpartum Workout | 20 Minute HIIT Workout (Knee Friendly) Low Impact, NO Squats, NO Lunges",
+    channel: "Pregnancy and Postpartum TV", duration: 20, focus: "cardio", position: "mixed", risk: "medium", level: "stable",
+    drFriendly: true, crunchHeavy: false, reserveOnly: false, approved: true, rejected: false, demo: false, starter: true, kneeFriendly: true,
+    menstrualEligible: false,
+    url: youtubeWatchUrl("VVahExTVlt4"), thumbnail: youtubeThumbnail("VVahExTVlt4"), publishedAt: "",
+    note: "膝盖友好产后候选：低冲击、无深蹲、无弓步，并提供手膝位替代动作。"
+  },
+  {
+    id: "VfSlEgg4ApE",
+    title: "Yoga For Sensitive Knees | Yoga With Adriene",
+    channel: "Yoga With Adriene", duration: 30, focus: "mobility", position: "mat", risk: "low", level: "recovery",
+    drFriendly: true, crunchHeavy: false, reserveOnly: false, approved: true, rejected: false, demo: false, starter: true, kneeFriendly: true,
+    menstrualEligible: false,
+    url: youtubeWatchUrl("VfSlEgg4ApE"), thumbnail: youtubeThumbnail("VfSlEgg4ApE"), publishedAt: "",
+    note: "膝盖敏感恢复候选：该练习明确针对 sensitive knees，并尽量避免给膝盖施压。"
+  }
+];
+for (const video of kneeFriendlyExpansion) {
+  if (!sampleVideos.some(existing => String(existing.id) === String(video.id))) sampleVideos.push(video);
+}
+
 const existingSeedIds = new Set(sampleVideos.map(video => String(video.id)));
 sampleVideos.push(...pregnancyPostpartumExpansion.filter(video => !existingSeedIds.has(String(video.id))));
 const expandedSeedIds = new Set(sampleVideos.map(video => String(video.id)));
@@ -2602,6 +2671,7 @@ const verifiedSeedVideoIds = new Set(sampleVideos.map(video => String(video.id))
 const verifiedSeedById = new Map(sampleVideos.map(video => [String(video.id), video]));
 sampleVideos.forEach(video => {
   Object.assign(video, normalizeMenstrualSafety(video));
+  video.kneeFriendly = inferKneeFriendly(video);
   video.verificationStatus = video.starter ? 'curated' : (video.verificationStatus || 'manual');
   video.verifiedAt = video.starter ? null : (video.verifiedAt || null);
   video.verifiedChannel = video.starter ? '' : (video.verifiedChannel || '');
@@ -2651,6 +2721,7 @@ function defaultState() {
       channel: 'all',
       focus: 'all',
       position: 'all',
+      preference: 'all',
       sort: 'default'
     },
     libraryAudit: {
@@ -2877,9 +2948,9 @@ function loadState() {
     merged.plan = Array.isArray(merged.plansByWeek[currentWeekStart]) ? merged.plansByWeek[currentWeekStart] : [];
     const currentPreferences = merged.weekPreferencesByStart[currentWeekStart] || { excludedChannels: [] };
     merged.weekPreferences = { weekStart: currentWeekStart, excludedChannels: Array.isArray(currentPreferences.excludedChannels) ? currentPreferences.excludedChannels : [] };
-    const allowedSorts = new Set(['default','channel-asc','channel-desc','usage-desc','usage-asc','recent-desc','recent-asc','title-asc','title-desc','duration-asc','duration-desc']);
+    const allowedSorts = new Set(['default','channel-asc','channel-desc','usage-desc','usage-asc','recent-desc','recent-asc','title-asc','title-desc','duration-asc','duration-desc','preference']);
     if (!allowedSorts.has(merged.libraryPreferences.sort)) merged.libraryPreferences.sort = 'default';
-    for (const key of ['channel','focus','position']) {
+    for (const key of ['channel','focus','position','preference']) {
       if (!merged.libraryPreferences[key]) merged.libraryPreferences[key] = 'all';
     }
     merged.videos = (merged.videos || []).map(video => {
@@ -3063,6 +3134,7 @@ function deterministicTieBreak(videoId, weekStart) {
 function videoScore(video, template, mode, usedIds, assessment, planContext = {}) {
   let score = 0;
   const period = planContext.period || { active:false };
+  if (videoPreference(video) === 'favorite') score += 24;
   if (usedIds.has(video.id)) score -= 100;
   if (video.focus === template.type) score += 30;
   if (template.type === 'pilates' && ['pilates','postpartum','glutes'].includes(video.focus)) score += 12;
@@ -3073,7 +3145,8 @@ function videoScore(video, template, mode, usedIds, assessment, planContext = {}
   if (state.settings.preferMat && video.position === 'mat') score += 11;
   if (state.settings.avoidCrunch && video.crunchHeavy) score -= 80;
   if (assessment.pains.includes('foot') && video.position === 'standing') score -= 50;
-  if (assessment.pains.includes('knee') && video.position === 'standing') score -= 35;
+  if (assessment.pains.includes('knee') && inferKneeFriendly(video)) score += 55;
+  if (assessment.pains.includes('knee') && video.position === 'standing' && !inferKneeFriendly(video)) score -= 35;
   if (assessment.pains.includes('core') && !video.drFriendly) score -= 45;
   if (assessment.pains.includes('shoulder') && video.focus === 'mobility') score += 8;
   const limit = Number(assessment.timeAvailable || 15);
@@ -3096,6 +3169,7 @@ function videoScore(video, template, mode, usedIds, assessment, planContext = {}
 }
 
 function isVideoEligibleForAssessment(video, assessment, planContext = {}) {
+  if (videoPreference(video) === 'dislike') return false;
   const period = planContext.period || { active:false };
   if (period.active) {
     if (video.reserveOnly || video.channel === 'Heather Robertson' || video.channel === 'MIZI') return false;
@@ -3109,7 +3183,8 @@ function isVideoEligibleForAssessment(video, assessment, planContext = {}) {
     if (assessment.mode !== 'progress' && (video.reserveOnly || video.channel === 'Heather Robertson')) return false;
     if (assessment.mode === 'recovery' && video.channel === 'MIZI') return false;
   }
-  if (state.settings.autoDowngrade && (assessment.pains.includes('foot') || assessment.pains.includes('knee')) && video.position === 'standing') return false;
+  if (state.settings.autoDowngrade && assessment.pains.includes('foot') && video.position === 'standing') return false;
+  if (state.settings.autoDowngrade && assessment.pains.includes('knee') && video.position === 'standing' && !inferKneeFriendly(video)) return false;
   if (state.settings.autoDowngrade && assessment.pains.includes('core') && !video.drFriendly) return false;
   return true;
 }
@@ -3702,7 +3777,7 @@ function renderWeek() {
 }
 
 function ensureLibraryPreferences() {
-  const defaults = { channel:'all', focus:'all', position:'all', sort:'default' };
+  const defaults = { channel:'all', focus:'all', position:'all', preference:'all', sort:'default' };
   state.libraryPreferences = { ...defaults, ...(state.libraryPreferences || {}) };
 }
 
@@ -3724,6 +3799,7 @@ function renderLibraryControls() {
   channelSelect.value = preferences.channel;
   document.getElementById('libraryFocusFilter').value = preferences.focus;
   document.getElementById('libraryPositionFilter').value = preferences.position;
+  document.getElementById('libraryPreferenceFilter').value = preferences.preference;
   document.getElementById('librarySort').value = preferences.sort;
 }
 
@@ -3769,6 +3845,10 @@ function sortLibraryVideos(videos, stats) {
     else if (sort === 'title-desc') result = compareText(b.title,a.title);
     else if (sort === 'duration-asc') result = Number(a.duration||0)-Number(b.duration||0) || compareText(a.title,b.title);
     else if (sort === 'duration-desc') result = Number(b.duration||0)-Number(a.duration||0) || compareText(a.title,b.title);
+    else if (sort === 'preference') {
+      const rank = value => value === 'favorite' ? 0 : value === 'neutral' ? 1 : 2;
+      result = rank(videoPreference(a)) - rank(videoPreference(b)) || compareText(a.channel,b.channel) || compareText(a.title,b.title);
+    }
     return result || fallback(a,b);
   });
 }
@@ -3776,13 +3856,14 @@ function sortLibraryVideos(videos, stats) {
 function filteredVideos() {
   ensureLibraryPreferences();
   const q = document.getElementById('librarySearch')?.value.toLowerCase().trim() || '';
-  const { channel, focus, position } = state.libraryPreferences;
+  const { channel, focus, position, preference } = state.libraryPreferences;
   const stats = videoUsageStats();
   const videos = state.videos.filter(v => v.approved && !v.rejected)
     .filter(v => !q || `${v.title} ${v.channel}`.toLowerCase().includes(q))
     .filter(v => channel === 'all' || v.channel === channel)
     .filter(v => focus === 'all' || v.focus === focus)
-    .filter(v => position === 'all' || v.position === position);
+    .filter(v => position === 'all' || v.position === position)
+    .filter(v => preference === 'all' || videoPreference(v) === preference);
   return { videos: sortLibraryVideos(videos, stats), stats };
 }
 
@@ -3797,18 +3878,19 @@ function renderLibrary() {
   document.getElementById('libraryGrid').innerHTML = videos.length ? videos.map(v => {
     const usage = stats.get(v.id) || { count:0, lastUsed:'' };
     const recent = usage.lastUsed ? ` · 最近 ${formatDate(usage.lastUsed)}` : '';
+    const preference = videoPreference(v);
     return `
-    <article class="video-card">
+    <article class="video-card ${preference === 'favorite' ? 'video-favorite' : preference === 'dislike' ? 'video-disliked' : ''}">
       <div class="video-thumb">${v.thumbnail?`<img src="${escapeHtml(v.thumbnail)}" alt="">`:`${escapeHtml(v.channel)}<br><small>已批准</small>`}</div>
       <div class="video-body">
         <h4>${escapeHtml(v.title)}</h4><p>${escapeHtml(v.channel)} · ${v.duration} 分钟</p>
         <p class="video-usage-meta">已使用 ${usage.count} 次${recent}</p>
-        <div class="mini-tags"><span class="mini-tag">${focusLabels[v.focus]||v.focus}</span><span class="mini-tag">${positionLabels[v.position]}</span><span class="mini-tag">${riskLabels[v.risk]}</span>${v.reserveOnly?'<span class="mini-tag reserve-tag">高强度备用</span>':''}${v.abTraining?'<span class="mini-tag warning-tag">含腹肌训练</span>':''}${v.pelvicInversion?'<span class="mini-tag warning-tag">含臀桥/骨盆抬高</span>':''}${isStrictMenstrualVideo(v)?'<span class="mini-tag period-safe-tag">生理期可用</span>':'<span class="mini-tag muted-tag">生理期未确认</span>'}${verificationBadge(v)}${v.autoPlanEligible===false&&!v.needsReview?'<span class="mini-tag info-only-tag">仅资料库</span>':''}</div>
+        <div class="mini-tags"><span class="mini-tag">${focusLabels[v.focus]||v.focus}</span><span class="mini-tag">${positionLabels[v.position]}</span><span class="mini-tag">${riskLabels[v.risk]}</span>${preference==='favorite'?'<span class="mini-tag preference-favorite-tag">♥ 喜欢</span>':''}${preference==='dislike'?'<span class="mini-tag preference-dislike-tag">不喜欢 · 不排课</span>':''}${v.kneeFriendly?'<span class="mini-tag knee-friendly-tag">膝盖友好</span>':''}${v.reserveOnly?'<span class="mini-tag reserve-tag">高强度备用</span>':''}${v.abTraining?'<span class="mini-tag warning-tag">含腹肌训练</span>':''}${v.pelvicInversion?'<span class="mini-tag warning-tag">含臀桥/骨盆抬高</span>':''}${isStrictMenstrualVideo(v)?'<span class="mini-tag period-safe-tag">生理期可用</span>':'<span class="mini-tag muted-tag">生理期未确认</span>'}${verificationBadge(v)}${v.autoPlanEligible===false&&!v.needsReview?'<span class="mini-tag info-only-tag">仅资料库</span>':''}</div>
         ${v.verificationNote ? `<p class="verification-note">${escapeHtml(v.verificationNote)}</p>` : ''}
         ${v.originalChannel && v.originalChannel !== v.channel ? `<p class="original-channel">原标注频道：${escapeHtml(v.originalChannel)}</p>` : ''}
         <div class="video-footer video-footer-wrap">
           ${videoLinkMarkup(v, '在 YouTube 打开', 'text-link')}
-          <div class="button-row compact"><button class="icon-action library-checkin-btn" onclick="openLibraryFeedback('${v.id}')">打卡记录</button>${v.needsReview?`<button class="icon-action confirm-video-btn" onclick="confirmCorrectedVideo('${v.id}')">确认用于排课</button>`:''}<button class="icon-action" data-verify-video="${escapeHtml(v.id)}" onclick="verifyVideoMetadata('${v.id}')">打开核对</button><button class="icon-action" onclick="openEditVideo('${v.id}')">搜索 / 修改</button><button class="icon-action" onclick="removeVideo('${v.id}')">移除</button></div>
+          <div class="video-preference-actions"><button class="preference-btn favorite-btn ${preference==='favorite'?'active':''}" onclick="setVideoPreference('${v.id}','favorite')" aria-pressed="${preference==='favorite'}">♥ 喜欢</button><button class="preference-btn dislike-btn ${preference==='dislike'?'active':''}" onclick="setVideoPreference('${v.id}','dislike')" aria-pressed="${preference==='dislike'}">不喜欢</button></div><div class="button-row compact"><button class="icon-action library-checkin-btn" onclick="openLibraryFeedback('${v.id}')">打卡记录</button>${v.needsReview?`<button class="icon-action confirm-video-btn" onclick="confirmCorrectedVideo('${v.id}')">确认用于排课</button>`:''}<button class="icon-action" data-verify-video="${escapeHtml(v.id)}" onclick="verifyVideoMetadata('${v.id}')">打开核对</button><button class="icon-action" onclick="openEditVideo('${v.id}')">搜索 / 修改</button><button class="icon-action" onclick="removeVideo('${v.id}')">移除</button></div>
         </div>
       </div>
     </article>`;
@@ -4285,7 +4367,7 @@ function importData(file) {
       if (!parsed.weekPreferencesByStart[importedPreferenceWeek]) parsed.weekPreferencesByStart[importedPreferenceWeek] = { excludedChannels: Array.isArray(parsed.weekPreferences?.excludedChannels) ? parsed.weekPreferences.excludedChannels : [] };
       for (const pref of Object.values(parsed.weekPreferencesByStart)) if (Array.isArray(pref?.excludedChannels)) pref.excludedChannels = pref.excludedChannels.filter(name => !isRetiredChannelName(name));
       parsed.weekPreferences = { weekStart:startOfPlanWeek(), excludedChannels:Array.isArray(parsed.weekPreferencesByStart[startOfPlanWeek()]?.excludedChannels) ? parsed.weekPreferencesByStart[startOfPlanWeek()].excludedChannels : [] };
-      parsed.libraryPreferences = { channel:'all', focus:'all', position:'all', sort:'default', ...(parsed.libraryPreferences || {}) };
+      parsed.libraryPreferences = { channel:'all', focus:'all', position:'all', preference:'all', sort:'default', ...(parsed.libraryPreferences || {}) };
       if (isRetiredChannelName(parsed.libraryPreferences.channel)) parsed.libraryPreferences.channel = 'all';
       parsed.libraryAudit = { ...defaultState().libraryAudit, ...(parsed.libraryAudit || {}), running:false };
       parsed.menstrual = { ...defaultState().menstrual, ...(parsed.menstrual || {}) };
@@ -4356,6 +4438,9 @@ function bindEvents() {
   });
   document.getElementById('libraryPositionFilter').addEventListener('change',event=>{
     ensureLibraryPreferences(); state.libraryPreferences.position=event.target.value; saveState(); renderLibrary();
+  });
+  document.getElementById('libraryPreferenceFilter').addEventListener('change',event=>{
+    ensureLibraryPreferences(); state.libraryPreferences.preference=event.target.value; saveState(); renderLibrary();
   });
   document.getElementById('librarySort').addEventListener('change',event=>{
     ensureLibraryPreferences(); state.libraryPreferences.sort=event.target.value; saveState(); renderLibrary();

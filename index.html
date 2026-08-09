@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Weekly Reset 3.0</title>
+  <title>Weekly Reset 3.2</title>
 </head>
 <body>
   <div class="app-shell">
@@ -21,7 +21,7 @@
       <div class="brand">
         <div class="brand-mark">WR</div>
         <div>
-          <h1>Weekly Reset <span class="brand-version">3.0</span></h1>
+          <h1>Weekly Reset <span class="brand-version">3.2</span></h1>
           <p>恢复优先 · 智能排课</p>
         </div>
       </div>
@@ -36,7 +36,7 @@
       </nav>
 
       <div class="sidebar-card">
-        <p class="eyebrow">Weekly Reset 3.0</p>
+        <p class="eyebrow">Weekly Reset 3.2</p>
         <strong>恢复状态优先</strong>
         <p>计划服务于身体状态，而不是反过来。</p>
       </div>
@@ -154,6 +154,12 @@
             <option value="mixed">混合</option>
             <option value="standing">站立为主</option>
           </select>
+          <select id="libraryPreferenceFilter" aria-label="按个人偏好筛选">
+            <option value="all">全部偏好</option>
+            <option value="favorite">♥ 喜欢</option>
+            <option value="dislike">不喜欢</option>
+            <option value="neutral">未标记</option>
+          </select>
           <select id="librarySort" aria-label="视频排序方式">
             <option value="default">内置顺序</option>
             <option value="channel-asc">频道名称 A–Z</option>
@@ -166,6 +172,7 @@
             <option value="title-desc">视频标题 Z–A</option>
             <option value="duration-asc">时长：短到长</option>
             <option value="duration-desc">时长：长到短</option>
+            <option value="preference">个人偏好：喜欢优先</option>
           </select>
         </div>
         <div id="libraryAuditStatus" class="library-audit-status"></div>
