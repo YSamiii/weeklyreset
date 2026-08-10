@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 33;
+const APP_DATA_VERSION = 34;
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
 const RETIRED_CHANNEL_NAMES = new Set(['jessica valant pilates', 'jessica valant']);
@@ -2945,6 +2945,15 @@ function loadState() {
       delete merged.plansByWeek[currentWeekStart];
       delete merged.plansByWeek[addDays(currentWeekStart, 7)];
     }
+    // 3.2.1：旧计划可能包含超过“可用运动时间”硬上限的视频，升级后重建本周与下周。
+    if (parsedVersion < 34) {
+      delete merged.plansByWeek[currentWeekStart];
+      delete merged.plansByWeek[addDays(currentWeekStart, 7)];
+      if (merged.planMetaByWeek) {
+        delete merged.planMetaByWeek[currentWeekStart];
+        delete merged.planMetaByWeek[addDays(currentWeekStart, 7)];
+      }
+    }
     merged.plan = Array.isArray(merged.plansByWeek[currentWeekStart]) ? merged.plansByWeek[currentWeekStart] : [];
     const currentPreferences = merged.weekPreferencesByStart[currentWeekStart] || { excludedChannels: [] };
     merged.weekPreferences = { weekStart: currentWeekStart, excludedChannels: Array.isArray(currentPreferences.excludedChannels) ? currentPreferences.excludedChannels : [] };
@@ -3131,6 +3140,21 @@ function deterministicTieBreak(videoId, weekStart) {
   return (hash >>> 0) / 4294967295;
 }
 
+function workoutDurationPolicy(assessment = {}) {
+  const limit = Math.max(1, Number(assessment.timeAvailable || 15));
+  return {
+    limit,
+    preferredMin: Math.max(1, Math.floor(limit * 0.8)),
+    preferredMax: Math.ceil(limit * 1.2),
+    hardMax: limit + 5
+  };
+}
+function isVideoWithinTimeLimit(video, assessment = {}) {
+  const duration = Number(video?.duration || 0);
+  if (!Number.isFinite(duration) || duration <= 0) return false;
+  return duration <= workoutDurationPolicy(assessment).hardMax;
+}
+
 function videoScore(video, template, mode, usedIds, assessment, planContext = {}) {
   let score = 0;
   const period = planContext.period || { active:false };
@@ -3149,8 +3173,12 @@ function videoScore(video, template, mode, usedIds, assessment, planContext = {}
   if (assessment.pains.includes('knee') && video.position === 'standing' && !inferKneeFriendly(video)) score -= 35;
   if (assessment.pains.includes('core') && !video.drFriendly) score -= 45;
   if (assessment.pains.includes('shoulder') && video.focus === 'mobility') score += 8;
-  const limit = Number(assessment.timeAvailable || 15);
-  score -= Math.abs(Math.min(video.duration, 60) - Math.min(template.target, limit)) * .8;
+  const durationPolicy = workoutDurationPolicy(assessment);
+  const targetDuration = Math.min(template.target, durationPolicy.limit);
+  const videoDuration = Number(video.duration || 0);
+  score -= Math.abs(Math.min(videoDuration, 60) - targetDuration) * .8;
+  if (videoDuration >= durationPolicy.preferredMin && videoDuration <= durationPolicy.preferredMax) score += 8;
+  if (videoDuration > durationPolicy.limit) score -= (videoDuration - durationPolicy.limit) * 2.5;
   if (video.channel === 'MIZI' && mode !== 'progress') score -= 45;
   if ((video.reserveOnly || video.channel === 'Heather Robertson') && mode !== 'progress') score -= 120;
   if ((video.reserveOnly || video.channel === 'Heather Robertson') && mode === 'progress') score -= 18;
@@ -3170,6 +3198,8 @@ function videoScore(video, template, mode, usedIds, assessment, planContext = {}
 
 function isVideoEligibleForAssessment(video, assessment, planContext = {}) {
   if (videoPreference(video) === 'dislike') return false;
+  // 可用运动时间是硬限制：例如 15 分钟设置下，任何超过 20 分钟的视频都不能进入自动排课候选。
+  if (!isVideoWithinTimeLimit(video, assessment)) return false;
   const period = planContext.period || { active:false };
   if (period.active) {
     if (video.reserveOnly || video.channel === 'Heather Robertson' || video.channel === 'MIZI') return false;
