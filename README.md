@@ -43,6 +43,6 @@
 - “换轻一点” now explicitly chooses a lower-intensity option.
 
 
-## 3.4
-- 新增 Cloudflare Worker + YouTube Data API 自动发现新视频。
+## 3.4.1
+- 新增 Vercel 后端 + YouTube Data API 自动发现新视频。
 - 详细零基础配置见 `YOUTUBE_AUTO_SYNC_SETUP.md`。

@@ -2735,7 +2735,7 @@ function defaultState() {
       failed: 0
     },
     settings: {
-      apiKey: '', // legacy; 3.4 起不再使用或保存新的 API Key
+      apiKey: '', // legacy; 3.4.1 起不再使用或保存新的 API Key
       workerUrl: '',
       autoYouTubeSync: true,
       youtubeSyncHours: 6,
@@ -4069,9 +4069,9 @@ function renderSettings() {
   document.getElementById('channelSettings').innerHTML = channels.map((c,i)=>`<div class="channel-row"><input data-channel-name="${i}" value="${escapeHtml(c.name)}" placeholder="频道名称"><input data-channel-id="${i}" value="${escapeHtml(c.id)}" placeholder="频道地址 / @handle / UC... ID"><select data-channel-usage="${i}" aria-label="频道用途"><option value="primary" ${c.usage==='primary'?'selected':''}>主要候选</option><option value="secondary" ${c.usage==='secondary'?'selected':''}>次要候选</option><option value="occasional" ${c.usage==='occasional'?'selected':''}>低频使用</option><option value="reserve" ${c.usage==='reserve'?'selected':''}>高强度备用</option></select><button onclick="removeChannel(${i})" aria-label="删除">×</button></div>`).join('');
   const syncStatus = document.getElementById('youtubeSyncStatus');
   if (syncStatus) {
-    if (!state.settings.workerUrl) syncStatus.textContent = '尚未连接 Cloudflare Worker。完成一次设置后即可自动检查。';
+    if (!state.settings.workerUrl) syncStatus.textContent = '尚未连接 Vercel 后端。完成一次设置后即可自动检查。';
     else if (state.settings.lastSync) syncStatus.textContent = `上次检查：${new Date(state.settings.lastSync).toLocaleString('zh-CN', { timeZone: TZ })}`;
-    else syncStatus.textContent = 'Worker 已填写；尚未成功检查。';
+    else syncStatus.textContent = '后端已填写；尚未成功检查。';
   }
 }
 function setWeekView(weekStart) {
@@ -4289,7 +4289,7 @@ window.openEditVideo = function(id) {
   const inAppSearchButton = document.getElementById('searchVideoInAppBtn');
   const hasWorker = !!normalizedWorkerUrl(state.settings.workerUrl);
   inAppSearchButton.classList.toggle('hidden', !hasWorker);
-  setEditSearchStatus(hasWorker ? '可通过安全 Worker 在 App 内搜索，或打开 YouTube 搜索后粘贴单个视频链接。' : '连接 Cloudflare Worker 后可在 App 内搜索；也可以打开 YouTube 搜索后粘贴单个视频链接。');
+  setEditSearchStatus(hasWorker ? '可通过安全 Worker 在 App 内搜索，或打开 YouTube 搜索后粘贴单个视频链接。' : '连接 Vercel 后端 后可在 App 内搜索；也可以打开 YouTube 搜索后粘贴单个视频链接。');
   document.getElementById('editVideoDialog').showModal();
 };
 
@@ -4304,7 +4304,7 @@ async function searchYouTubeForEdit() {
   const workerUrl = normalizedWorkerUrl(state.settings.workerUrl);
   if (!query) { showToast('请先输入搜索关键词'); return; }
   if (!workerUrl) {
-    setEditSearchStatus('尚未连接 Cloudflare Worker。可点击“打开 YouTube 搜索”，然后粘贴正确视频链接。', true);
+    setEditSearchStatus('尚未连接 Vercel 后端。可点击“打开 YouTube 搜索”，然后粘贴正确视频链接。', true);
     return;
   }
   const button = document.getElementById('searchVideoInAppBtn');
@@ -4435,7 +4435,7 @@ async function syncYouTube({ silent = false } = {}) {
   saveSettingsFromForm();
   const workerUrl = normalizedWorkerUrl(state.settings.workerUrl);
   const channels = (state.settings.channels || []).filter(c => String(c.id || '').trim());
-  if(!workerUrl){ if(!silent){showToast('请先填写 Cloudflare Worker 地址');switchView('settings');} return; }
+  if(!workerUrl){ if(!silent){showToast('请先填写 YouTube 后端地址（Vercel）');switchView('settings');} return; }
   if(!channels.length){ if(!silent){showToast('请至少为一个频道填写频道地址、@handle 或频道 ID');switchView('settings');} return; }
   const button=document.getElementById('advancedSyncBtn');
   const old=button?.textContent || '';
