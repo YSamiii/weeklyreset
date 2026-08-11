@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 34;
+const APP_DATA_VERSION = 36;
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
 const RETIRED_CHANNEL_NAMES = new Set(['jessica valant pilates', 'jessica valant']);
@@ -2735,7 +2735,10 @@ function defaultState() {
       failed: 0
     },
     settings: {
-      apiKey: '',
+      apiKey: '', // legacy; 3.4 起不再使用或保存新的 API Key
+      workerUrl: '',
+      autoYouTubeSync: true,
+      youtubeSyncHours: 6,
       channels: structuredClone(defaultChannels),
       preferMat: true,
       avoidCrunch: true,
@@ -2954,6 +2957,15 @@ function loadState() {
         delete merged.planMetaByWeek[addDays(currentWeekStart, 7)];
       }
     }
+    // 3.3：让既有体感反馈立即参与后续排课，升级时重建本周与下周。
+    if (parsedVersion < 35) {
+      delete merged.plansByWeek[currentWeekStart];
+      delete merged.plansByWeek[addDays(currentWeekStart, 7)];
+      if (merged.planMetaByWeek) {
+        delete merged.planMetaByWeek[currentWeekStart];
+        delete merged.planMetaByWeek[addDays(currentWeekStart, 7)];
+      }
+    }
     merged.plan = Array.isArray(merged.plansByWeek[currentWeekStart]) ? merged.plansByWeek[currentWeekStart] : [];
     const currentPreferences = merged.weekPreferencesByStart[currentWeekStart] || { excludedChannels: [] };
     merged.weekPreferences = { weekStart: currentWeekStart, excludedChannels: Array.isArray(currentPreferences.excludedChannels) ? currentPreferences.excludedChannels : [] };
@@ -3155,6 +3167,45 @@ function isVideoWithinTimeLimit(video, assessment = {}) {
   return duration <= workoutDurationPolicy(assessment).hardMax;
 }
 
+// 3.3：把实际训练后的体感强度用于个人化排课。最近 3 次优先，避免一次偶然状态永久定义视频。
+function personalEffortProfile(videoOrId) {
+  const id = String(typeof videoOrId === 'object' ? videoOrId?.id : videoOrId || '');
+  if (!id) return { count:0, average:null, recent:[], pains:new Set() };
+  const recent = (state.feedback || [])
+    .filter(record => String(record.videoId || '') === id && ['completed','partial','swapped'].includes(record.status) && Number(record.effort) >= 1)
+    .sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+    .slice(0, 3);
+  const average = recent.length ? recent.reduce((sum, record) => sum + Number(record.effort || 0), 0) / recent.length : null;
+  const pains = new Set(recent.flatMap(record => Array.isArray(record.pains) ? record.pains : []));
+  return { count:recent.length, average, recent, pains };
+}
+function fallbackVideoEffort(video) {
+  let effort = video?.level === 'progress' ? 4 : video?.level === 'recovery' ? 2 : 3;
+  if (video?.risk === 'high') effort += .6;
+  else if (video?.risk === 'low') effort -= .3;
+  if (video?.reserveOnly || video?.channel === 'Heather Robertson') effort = Math.max(effort, 4.5);
+  return Math.max(1, Math.min(5, effort));
+}
+function personalVideoEffort(video) {
+  const profile = personalEffortProfile(video);
+  return profile.average ?? fallbackVideoEffort(video);
+}
+function targetEffortForAssessment(assessment = {}) {
+  const mode = assessment.mode || determineMode(assessment);
+  if (mode === 'recovery') return 2;
+  if (mode === 'progress') return 4;
+  return 3;
+}
+function personalEffortScoreAdjustment(video, assessment = {}, planContext = {}) {
+  const profile = personalEffortProfile(video);
+  const effort = profile.average ?? fallbackVideoEffort(video);
+  const target = planContext.period?.active ? 1.8 : targetEffortForAssessment(assessment);
+  let adjustment = -Math.abs(effort - target) * 13;
+  if (profile.count) adjustment += 5; // 有真实体感数据时略优先于仅靠预设标签的同等候选
+  if ((assessment.pains || []).some(pain => profile.pains.has(pain))) adjustment -= 70;
+  return adjustment;
+}
+
 function videoScore(video, template, mode, usedIds, assessment, planContext = {}) {
   let score = 0;
   const period = planContext.period || { active:false };
@@ -3182,6 +3233,7 @@ function videoScore(video, template, mode, usedIds, assessment, planContext = {}
   if (video.channel === 'MIZI' && mode !== 'progress') score -= 45;
   if ((video.reserveOnly || video.channel === 'Heather Robertson') && mode !== 'progress') score -= 120;
   if ((video.reserveOnly || video.channel === 'Heather Robertson') && mode === 'progress') score -= 18;
+  score += personalEffortScoreAdjustment(video, assessment, planContext);
   if (period.active) {
     if (isStrictMenstrualVideo(video)) score += 80;
     if (video.risk === 'low') score += 24;
@@ -3201,6 +3253,14 @@ function isVideoEligibleForAssessment(video, assessment, planContext = {}) {
   // 可用运动时间是硬限制：例如 15 分钟设置下，任何超过 20 分钟的视频都不能进入自动排课候选。
   if (!isVideoWithinTimeLimit(video, assessment)) return false;
   const period = planContext.period || { active:false };
+
+  const personal = personalEffortProfile(video);
+  const perceived = personal.average ?? fallbackVideoEffort(video);
+  // 恢复/低精力时，用户自己评为 4/5 以上的视频不进入自动候选；5/5 仅在状态很好时自动候选。
+  if (!period.active && (assessment.mode === 'recovery' || Number(assessment.energy || 3) <= 2) && perceived >= 4) return false;
+  if (!period.active && perceived >= 4.75 && !(assessment.mode === 'progress' && Number(assessment.energy || 3) >= 4 && Number(assessment.load || 3) <= 3 && !(assessment.pains || []).length)) return false;
+  // 若最近做这支视频时记录过与当前相同的不适，当前同部位不适时自动避开。
+  if ((assessment.pains || []).some(pain => personal.pains.has(pain))) return false;
   if (period.active) {
     if (video.reserveOnly || video.channel === 'Heather Robertson' || video.channel === 'MIZI') return false;
     if (video.risk === 'high' || video.crunchHeavy || video.level === 'progress') return false;
@@ -3246,12 +3306,35 @@ function buildWeeklyPlan(weekStart = startOfPlanWeek(), options = {}) {
   const blockedVideoIds = options.blockedVideoIds instanceof Set
     ? new Set(options.blockedVideoIds)
     : new Set(options.blockedVideoIds || []);
+  const preserveBeforeDate = options.preserveBeforeDate || '';
+  const existingPlan = Array.isArray(options.existingPlan) ? options.existingPlan : [];
+  const existingByDate = new Map(existingPlan.map(item => [item.date, item]));
   const rotationStats = videoRotationStats(weekStart);
   // 除相邻两周去重外，默认硬性避开过去 14 天已安排或完成的视频。
   for (const id of recentRotationBlockedIds(weekStart, 14)) blockedVideoIds.add(id);
+  // 当前周中“今天之前”的既有安排属于历史部分：保留原视频，并占用视频 ID，
+  // 这样从今天开始重排时不会把已经练过/已经安排过的视频再次排进本周。
+  if (preserveBeforeDate) {
+    for (const item of existingPlan) {
+      if (item?.date && item.date < preserveBeforeDate && item.videoId) blockedVideoIds.add(item.videoId);
+    }
+  }
   const used = new Set(blockedVideoIds);
   return dayTemplates.map((baseTemplate, index) => {
     const date = dates[index];
+    if (preserveBeforeDate && date < preserveBeforeDate) {
+      const existing = existingByDate.get(date);
+      if (existing) {
+        if (existing.videoId) used.add(existing.videoId);
+        return existing; // 完整保留过去日期，不改视频、理由或生成时间。
+      }
+      return {
+        date, day: baseTemplate.day, category: baseTemplate.label,
+        videoId: null, videoSnapshot: null, periodDay: 0,
+        rationale: '该日期已过去，重新生成计划时不再补排或改动。',
+        generatedAt: new Date().toISOString()
+      };
+    }
     const period = menstrualContextForDate(date);
     const template = menstrualTemplateForDay(baseTemplate, period);
     const planContext = { date, period, weekStart, rotationStats };
@@ -3305,8 +3388,9 @@ function generatePlan(weekStart = selectedWeekStart) {
   const { current, next } = currentAndNextWeekStarts();
   let plan;
   if (weekStart === current) {
-    plan = buildWeeklyPlan(current);
-    setPlanForWeek(current, plan); markPlanLocked(current, 'manual-regenerate');
+    const today = torontoDate();
+    plan = buildWeeklyPlan(current, { preserveBeforeDate: today, existingPlan: planForWeek(current) });
+    setPlanForWeek(current, plan); markPlanLocked(current, 'manual-regenerate-from-today');
     setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds: planVideoIds(current) })); markPlanLocked(next, 'paired-with-current');
   } else {
     plan = buildPlanWithCrossWeekRules(weekStart);
@@ -3321,12 +3405,14 @@ function generatePlan(weekStart = selectedWeekStart) {
     : periodDays
       ? `${label}已为 ${periodDays} 个生理期日期安排温和训练，并避免与相邻计划周重复`
       : weekStart === current
-        ? '本周与下周已重新生成，两个计划周之间没有重复视频'
+        ? '本周从今天起已重新生成；过去日期保持不变，下周也已按最新状态更新'
         : `${label}已生成；周内无重复，并已避开本周使用的视频`);
 }
 function regenerateCurrentAndNext() {
   const { current, next } = currentAndNextWeekStarts();
-  setPlanForWeek(current, buildWeeklyPlan(current)); markPlanLocked(current, 'state-change');
+  const today = torontoDate();
+  const currentPlan = buildWeeklyPlan(current, { preserveBeforeDate: today, existingPlan: planForWeek(current) });
+  setPlanForWeek(current, currentPlan); markPlanLocked(current, 'state-change-from-today');
   setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds: planVideoIds(current) })); markPlanLocked(next, 'state-change');
   saveState(); renderAll();
 }
@@ -3676,7 +3762,7 @@ function renderHome() {
     <div class="check-option"><div><strong>精力状态</strong><div class="helper" style="margin:4px 0 0">本周评估 ${state.assessment.energy}/5</div></div><button onclick="document.getElementById('assessmentDialog').showModal()">调整</button></div>
     <div class="check-option"><div><strong>当前不适</strong><div class="helper" style="margin:4px 0 0">${pains.length ? pains.map(painName).join('、') : '未记录不适'}</div></div><button onclick="document.getElementById('assessmentDialog').showModal()">更新</button></div>
     <div class="check-option"><div><strong>生理期安排</strong><div class="helper" style="margin:4px 0 0">${state.menstrual.enabled ? menstrualStatusText() : '未启用；可按日期自动降低强度'}</div></div><button onclick="openMenstrualDialog()">${state.menstrual.enabled ? '修改' : '设置'}</button></div>
-    <div class="check-option"><div><strong>今日替换</strong><div class="helper" style="margin:4px 0 0">太累或不舒服时换成恢复训练</div></div><button onclick="swapPlan('${planItem?.date}')">换轻一点</button></div>
+    <div class="check-option"><div><strong>今日替换</strong><div class="helper" style="margin:4px 0 0">按今天状态临时调整，不改变整周评估</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button onclick="swapPlan('${planItem?.date}')">换轻一点</button><button onclick="challengePlan('${planItem?.date}')">挑战一点</button></div></div>
     <div class="check-option community-check-option"><div><strong>Community Centre 现场课</strong><div class="helper" style="margin:4px 0 0">普拉提或瑜伽课可直接覆盖今日视频</div></div><button onclick="openCommunityClass('${today}')">${communityRecord ? '修改' : '打卡'}</button></div>`;
 
   const activeStatuses = new Set(['completed','partial','swapped']);
@@ -3967,7 +4053,9 @@ function renderInsights() {
 }
 
 function renderSettings() {
-  document.getElementById('apiKeyInput').value = state.settings.apiKey || '';
+  document.getElementById('youtubeWorkerUrl').value = state.settings.workerUrl || '';
+  document.getElementById('autoYouTubeSync').checked = state.settings.autoYouTubeSync !== false;
+  document.getElementById('youtubeSyncHours').value = state.settings.youtubeSyncHours || 6;
   document.getElementById('preferMat').checked = !!state.settings.preferMat;
   document.getElementById('avoidCrunch').checked = !!state.settings.avoidCrunch;
   document.getElementById('autoDowngrade').checked = !!state.settings.autoDowngrade;
@@ -3978,7 +4066,13 @@ function renderSettings() {
       <div><strong>${escapeHtml(c.name || '未命名频道')}</strong><span>${channelUsageLabels[c.usage] || '候选频道'}</span></div>
       <button class="secondary-btn" type="button" onclick="openChannelSearch(${i})">打开 YouTube</button>
     </div>`).join('');
-  document.getElementById('channelSettings').innerHTML = channels.map((c,i)=>`<div class="channel-row"><input data-channel-name="${i}" value="${escapeHtml(c.name)}" placeholder="频道名称"><input data-channel-id="${i}" value="${escapeHtml(c.id)}" placeholder="UC... 频道 ID"><select data-channel-usage="${i}" aria-label="频道用途"><option value="primary" ${c.usage==='primary'?'selected':''}>主要候选</option><option value="secondary" ${c.usage==='secondary'?'selected':''}>次要候选</option><option value="occasional" ${c.usage==='occasional'?'selected':''}>低频使用</option><option value="reserve" ${c.usage==='reserve'?'selected':''}>高强度备用</option></select><button onclick="removeChannel(${i})" aria-label="删除">×</button></div>`).join('');
+  document.getElementById('channelSettings').innerHTML = channels.map((c,i)=>`<div class="channel-row"><input data-channel-name="${i}" value="${escapeHtml(c.name)}" placeholder="频道名称"><input data-channel-id="${i}" value="${escapeHtml(c.id)}" placeholder="频道地址 / @handle / UC... ID"><select data-channel-usage="${i}" aria-label="频道用途"><option value="primary" ${c.usage==='primary'?'selected':''}>主要候选</option><option value="secondary" ${c.usage==='secondary'?'selected':''}>次要候选</option><option value="occasional" ${c.usage==='occasional'?'selected':''}>低频使用</option><option value="reserve" ${c.usage==='reserve'?'selected':''}>高强度备用</option></select><button onclick="removeChannel(${i})" aria-label="删除">×</button></div>`).join('');
+  const syncStatus = document.getElementById('youtubeSyncStatus');
+  if (syncStatus) {
+    if (!state.settings.workerUrl) syncStatus.textContent = '尚未连接 Cloudflare Worker。完成一次设置后即可自动检查。';
+    else if (state.settings.lastSync) syncStatus.textContent = `上次检查：${new Date(state.settings.lastSync).toLocaleString('zh-CN', { timeZone: TZ })}`;
+    else syncStatus.textContent = 'Worker 已填写；尚未成功检查。';
+  }
 }
 function setWeekView(weekStart) {
   selectedWeekStart = startOfPlanWeek(weekStart);
@@ -4025,27 +4119,70 @@ window.swapPlan = function(date) {
   const item = weekPlan.find(p=>p.date===date); if(!item) return;
   const current = getVideo(item.videoId);
   const period = menstrualContextForDate(date);
-  const planContext = { date, period };
+  const planContext = { date, period, weekStart, rotationStats:videoRotationStats(weekStart) };
   const usedOnOtherDays = new Set(weekPlan.filter(planItem => planItem.date !== date && planItem.videoId).map(planItem => planItem.videoId));
   const usedInPairedWeek = crossWeekBlockedVideoIds(weekStart);
   const approved = approvedPlanVideos(weekStart)
     .filter(video => video.id !== item.videoId && !usedOnOtherDays.has(video.id) && !usedInPairedWeek.has(video.id))
     .filter(video => isVideoEligibleForAssessment(video, state.assessment, planContext));
-  const preferRecovery = period.active || state.assessment.mode==='recovery' || state.assessment.pains.length;
-  const template = menstrualTemplateForDay({type:current?.focus||'mobility',label:'替换训练',target:15}, period);
-  const effectiveMode = period.active ? 'recovery' : state.assessment.mode;
-  const candidates=approved
-    .filter(v=>!preferRecovery || (v.risk==='low'&&v.position!=='standing'))
+  const currentEffort = current ? personalVideoEffort(current) : 3;
+  const template = menstrualTemplateForDay({type:current?.focus||'mobility',label:'替换训练',target:Math.min(15, state.assessment.timeAvailable || 15)}, period);
+  const effectiveMode = period.active ? 'recovery' : 'recovery';
+  let candidates = approved
+    .filter(v => personalVideoEffort(v) < currentEffort - .2 || (v.risk === 'low' && current?.risk !== 'low'))
+    .sort((a,b) => {
+      const effortDiff = personalVideoEffort(a) - personalVideoEffort(b);
+      if (Math.abs(effortDiff) > .15) return effortDiff;
+      return videoScore(b,template,effectiveMode,new Set(),state.assessment,planContext)-videoScore(a,template,effectiveMode,new Set(),state.assessment,planContext);
+    });
+  if (!candidates.length) candidates = approved
+    .filter(v=>v.risk==='low' && v.position!=='standing')
     .sort((a,b)=>videoScore(b,template,effectiveMode,new Set(),state.assessment,planContext)-videoScore(a,template,effectiveMode,new Set(),state.assessment,planContext));
   const chosen=candidates[0];
-  if(!chosen){showToast(period.active ? '没有其他适合当前生理期日期且未在本周或相邻计划周使用的视频' : '没有未在本周或相邻计划周使用的替换视频；请添加视频或恢复频道');return;}
+  if(!chosen){showToast(period.active ? '没有其他适合当前生理期日期的更轻视频' : '没有符合时长和安全限制的更轻视频');return;}
   item.videoId=chosen.id;
   item.videoSnapshot={id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,focus:chosen.focus,position:chosen.position,risk:chosen.risk,abTraining:!!chosen.abTraining,pelvicInversion:!!chosen.pelvicInversion,menstrualEligible:!!chosen.menstrualEligible,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail};
   item.periodDay=period.active ? period.day : 0;
   item.category=period.active ? template.label : item.category;
-  item.rationale=period.active ? `生理期第 ${period.day} 天替换为已确认不含腹肌训练和臀桥／骨盆抬高动作的视频，并保持周内及本周／下周不重复。` : '根据当前状态替换，并保持周内及本周／下周视频不重复。';
+  item.rationale=`今日手动选择“换轻一点”：个人体感预计 ${personalVideoEffort(chosen).toFixed(1)}/5；仍遵守时长、安全与跨周不重复限制。`;
   setPlanForWeek(weekStart, weekPlan);
-  saveState();renderAll();showToast(period.active ? '已替换为不含腹肌训练和骨盆倒置动作的视频，并保持跨周不重复' : '已替换当天训练，本周与下周仍无重复');
+  saveState();renderAll();showToast('已换成更轻一点的训练');
+};
+
+window.challengePlan = function(date) {
+  const weekStart = weekStartForDate(date);
+  if (weekRelation(weekStart) === 'past') { showToast('历史周计划已锁定'); return; }
+  const period = menstrualContextForDate(date);
+  if (period.active) { showToast('生理期日期不提供“挑战一点”，继续按生理期安全规则排课'); return; }
+  const weekPlan = planForWeek(weekStart);
+  const item = weekPlan.find(p=>p.date===date); if(!item) return;
+  const current = getVideo(item.videoId);
+  const currentEffort = current ? personalVideoEffort(current) : targetEffortForAssessment(state.assessment);
+  const usedOnOtherDays = new Set(weekPlan.filter(planItem => planItem.date !== date && planItem.videoId).map(planItem => planItem.videoId));
+  const usedInPairedWeek = crossWeekBlockedVideoIds(weekStart);
+  // 临时挑战只提升今天，不修改整周 assessment；疼痛、核心、时长等硬限制照常保留。
+  const challengeAssessment = { ...state.assessment, mode:'progress' };
+  const planContext = { date, period:{active:false}, weekStart, rotationStats:videoRotationStats(weekStart) };
+  const template = {type:current?.focus||'pilates',label:'挑战训练',target:Math.min(Number(state.assessment.timeAvailable || 15), current?.duration || 15)};
+  const approved = approvedPlanVideos(weekStart)
+    .filter(video => video.id !== item.videoId && !usedOnOtherDays.has(video.id) && !usedInPairedWeek.has(video.id))
+    .filter(video => isVideoEligibleForAssessment(video, challengeAssessment, planContext));
+  const target = Math.min(5, Math.max(3.5, currentEffort + .8));
+  const candidates = approved
+    .filter(v => personalVideoEffort(v) >= currentEffort + .3)
+    .sort((a,b) => {
+      const aGap = Math.abs(personalVideoEffort(a) - target);
+      const bGap = Math.abs(personalVideoEffort(b) - target);
+      if (Math.abs(aGap-bGap) > .1) return aGap-bGap;
+      return videoScore(b,template,'progress',new Set(),challengeAssessment,planContext)-videoScore(a,template,'progress',new Set(),challengeAssessment,planContext);
+    });
+  const chosen = candidates[0];
+  if (!chosen) { showToast('没有符合当前时长与安全限制、且比现有计划稍强的视频'); return; }
+  item.videoId=chosen.id;
+  item.videoSnapshot={id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,focus:chosen.focus,position:chosen.position,risk:chosen.risk,abTraining:!!chosen.abTraining,pelvicInversion:!!chosen.pelvicInversion,menstrualEligible:!!chosen.menstrualEligible,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail};
+  item.rationale=`今日手动选择“挑战一点”：从约 ${currentEffort.toFixed(1)}/5 提升到约 ${personalVideoEffort(chosen).toFixed(1)}/5；仍遵守疼痛、核心安全、时长与跨周不重复限制。`;
+  setPlanForWeek(weekStart, weekPlan);
+  saveState();renderAll();showToast('已换成稍有挑战的训练');
 };
 
 function hydrateFeedbackFields({ source, date, video, existing, title, context }) {
@@ -4150,8 +4287,9 @@ window.openEditVideo = function(id) {
   document.getElementById('editVideoNote').value = video.note || '';
   document.getElementById('editVideoSearchResults').innerHTML = '';
   const inAppSearchButton = document.getElementById('searchVideoInAppBtn');
-  inAppSearchButton.classList.toggle('hidden', !state.settings.apiKey);
-  setEditSearchStatus(state.settings.apiKey ? '可在 App 内搜索，或打开 YouTube 搜索后粘贴单个视频链接。' : '打开 YouTube 搜索，找到正确视频后把单个视频链接粘贴到下方。');
+  const hasWorker = !!normalizedWorkerUrl(state.settings.workerUrl);
+  inAppSearchButton.classList.toggle('hidden', !hasWorker);
+  setEditSearchStatus(hasWorker ? '可通过安全 Worker 在 App 内搜索，或打开 YouTube 搜索后粘贴单个视频链接。' : '连接 Cloudflare Worker 后可在 App 内搜索；也可以打开 YouTube 搜索后粘贴单个视频链接。');
   document.getElementById('editVideoDialog').showModal();
 };
 
@@ -4163,43 +4301,29 @@ function openExternalVideoSearch() {
 
 async function searchYouTubeForEdit() {
   const query = document.getElementById('editVideoSearchQuery').value.trim();
-  const apiKey = String(state.settings.apiKey || '').trim();
+  const workerUrl = normalizedWorkerUrl(state.settings.workerUrl);
   if (!query) { showToast('请先输入搜索关键词'); return; }
-  if (!apiKey) {
-    setEditSearchStatus('未配置 YouTube API Key，无法在 App 内显示搜索结果。可点击“打开 YouTube 搜索”，然后粘贴正确视频链接。', true);
+  if (!workerUrl) {
+    setEditSearchStatus('尚未连接 Cloudflare Worker。可点击“打开 YouTube 搜索”，然后粘贴正确视频链接。', true);
     return;
   }
   const button = document.getElementById('searchVideoInAppBtn');
   const oldText = button.textContent;
   button.disabled = true; button.textContent = '搜索中…';
   document.getElementById('editVideoSearchResults').innerHTML = '';
-  setEditSearchStatus('正在读取 YouTube 搜索结果…');
+  setEditSearchStatus('正在通过安全 Worker 读取 YouTube 搜索结果…');
   try {
-    const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
-    searchUrl.search = new URLSearchParams({ part:'snippet', type:'video', maxResults:'8', q:query, key:apiKey }).toString();
-    const searchRes = await fetch(searchUrl);
-    const searchData = await searchRes.json();
-    if (!searchRes.ok) throw new Error(searchData.error?.message || '搜索请求失败');
-    const ids = (searchData.items || []).map(item => item.id?.videoId).filter(Boolean);
-    if (!ids.length) {
-      setEditSearchStatus('没有找到视频。可修改关键词后重试。');
-      return;
-    }
-    const detailUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-    detailUrl.search = new URLSearchParams({ part:'snippet,contentDetails', id:ids.join(','), key:apiKey }).toString();
-    const detailRes = await fetch(detailUrl);
-    const detailData = await detailRes.json();
-    if (!detailRes.ok) throw new Error(detailData.error?.message || '视频详情读取失败');
-    editSearchResults = new Map((detailData.items || []).map(item => [item.id, {
-      id:item.id,
-      title:item.snippet?.title || '未命名视频',
-      channel:item.snippet?.channelTitle || '未知频道',
-      duration:isoDurationToMinutes(item.contentDetails?.duration || 'PT0M') || 1,
-      publishedAt:item.snippet?.publishedAt || '',
-      thumbnail:item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || youtubeThumbnail(item.id),
-      url:youtubeWatchUrl(item.id)
-    }]));
-    const results = ids.map(id => editSearchResults.get(id)).filter(Boolean);
+    const searchRes = await fetch(`${workerUrl}/search`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({q:query,maxResults:8})
+    });
+    const searchData = await searchRes.json().catch(()=>({}));
+    if (!searchRes.ok) throw new Error(searchData.error || '搜索请求失败');
+    const results = (searchData.videos || []).map(item => ({
+      id:item.id,title:item.title||'未命名视频',channel:item.channelTitle||'未知频道',
+      duration:Number(item.durationMinutes||1),publishedAt:item.publishedAt||'',thumbnail:item.thumbnail||youtubeThumbnail(item.id),url:youtubeWatchUrl(item.id)
+    }));
+    editSearchResults = new Map(results.map(item => [item.id,item]));
+    if (!results.length) { setEditSearchStatus('没有找到视频。可修改关键词后重试。'); return; }
     document.getElementById('editVideoSearchResults').innerHTML = results.map(result => `
       <article class="search-result-card">
         <img src="${escapeHtml(result.thumbnail)}" alt="">
@@ -4291,50 +4415,89 @@ window.removeVideo = function(id) {
 };
 window.removeChannel = function(index){ state.settings.channels.splice(index,1); saveState();renderSettings(); };
 
-async function syncYouTube() {
+let youtubeSyncInFlight = false;
+
+function normalizedWorkerUrl(value = '') {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function youtubeSyncDue() {
+  if (state.settings.autoYouTubeSync === false) return false;
+  if (!normalizedWorkerUrl(state.settings.workerUrl)) return false;
+  if (!(state.settings.channels || []).some(c => String(c.id || '').trim())) return false;
+  const hours = Math.max(1, Number(state.settings.youtubeSyncHours || 6));
+  const last = Date.parse(state.settings.lastSync || '');
+  return !Number.isFinite(last) || (Date.now() - last) >= hours * 60 * 60 * 1000;
+}
+
+async function syncYouTube({ silent = false } = {}) {
+  if (youtubeSyncInFlight) return;
   saveSettingsFromForm();
-  const apiKey=state.settings.apiKey.trim(); const channels=state.settings.channels.filter(c=>c.id.trim());
-  if(!apiKey){showToast('请先在设置中填写 YouTube API Key');switchView('settings');return;}
-  if(!channels.length){showToast('请至少填写一个频道 ID');switchView('settings');return;}
-  const button=document.getElementById('advancedSyncBtn'); const old=button.textContent; button.disabled=true; button.textContent='正在同步…';
+  const workerUrl = normalizedWorkerUrl(state.settings.workerUrl);
+  const channels = (state.settings.channels || []).filter(c => String(c.id || '').trim());
+  if(!workerUrl){ if(!silent){showToast('请先填写 Cloudflare Worker 地址');switchView('settings');} return; }
+  if(!channels.length){ if(!silent){showToast('请至少为一个频道填写频道地址、@handle 或频道 ID');switchView('settings');} return; }
+  const button=document.getElementById('advancedSyncBtn');
+  const old=button?.textContent || '';
+  youtubeSyncInFlight = true;
+  if (button) { button.disabled=true; button.textContent='正在检查…'; }
   try {
+    const response = await fetch(`${workerUrl}/sync`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ channels: channels.map(c => ({ name:c.name, identifier:c.id, usage:c.usage })), maxResults:10 })
+    });
+    const data = await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(data.error || data.message || `Worker 返回 ${response.status}`);
     let added=0;
-    for(const channel of channels){
-      const channelUrl=`https://www.googleapis.com/youtube/v3/channels?part=contentDetails,snippet&id=${encodeURIComponent(channel.id.trim())}&key=${encodeURIComponent(apiKey)}`;
-      const channelRes=await fetch(channelUrl); const channelData=await channelRes.json();
-      if(!channelRes.ok) throw new Error(channelData.error?.message||'频道读取失败');
-      const info=channelData.items?.[0]; if(!info) continue;
-      const uploads=info.contentDetails?.relatedPlaylists?.uploads; if(!uploads) continue;
-      const listUrl=`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${encodeURIComponent(uploads)}&maxResults=10&key=${encodeURIComponent(apiKey)}`;
-      const listRes=await fetch(listUrl); const listData=await listRes.json();
-      if(!listRes.ok) throw new Error(listData.error?.message||'视频列表读取失败');
-      const ids=(listData.items||[]).map(x=>x.contentDetails?.videoId).filter(Boolean);
-      let detailsById={};
-      if(ids.length){
-        const detailUrl=`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${ids.join(',')}&key=${encodeURIComponent(apiKey)}`;
-        const detailRes=await fetch(detailUrl); const detailData=await detailRes.json();
-        if(detailRes.ok) detailsById=Object.fromEntries((detailData.items||[]).map(x=>[x.id,x]));
-      }
-      for(const item of listData.items||[]){
-        const videoId=item.contentDetails?.videoId; if(!videoId)continue;
-        if(state.videos.some(v=>v.id===videoId)||state.pending.some(v=>v.id===videoId))continue;
-        const detail=detailsById[videoId]; const snippet=detail?.snippet||item.snippet;
-        state.pending.push({
-          id:videoId,title:snippet.title,channel:info.snippet?.title||channel.name,
-          description:snippet.description||'',duration:isoDurationToMinutes(detail?.contentDetails?.duration||'PT0M'),
-          url:`https://www.youtube.com/watch?v=${videoId}`,thumbnail:snippet.thumbnails?.medium?.url||snippet.thumbnails?.default?.url||'',
-          publishedAt:snippet.publishedAt||item.contentDetails?.videoPublishedAt||new Date().toISOString(),addedAt:new Date().toISOString(),approved:false,rejected:false,demo:false,
-          sourceUsage:channel.usage||'primary',sourceChannelId:channel.id.trim()
-        }); added++;
+    for(const video of data.videos || []){
+      const videoId=video.id; if(!videoId) continue;
+      if(state.videos.some(v=>v.id===videoId)||state.pending.some(v=>v.id===videoId)) continue;
+      state.pending.push({
+        id:videoId,title:video.title||'未命名视频',channel:video.channelTitle||video.channel||'',
+        description:video.description||'',duration:Number(video.durationMinutes||0),
+        url:`https://www.youtube.com/watch?v=${videoId}`,thumbnail:video.thumbnail||youtubeThumbnail(videoId),
+        publishedAt:video.publishedAt||new Date().toISOString(),addedAt:new Date().toISOString(),approved:false,rejected:false,demo:false,
+        sourceUsage:video.sourceUsage||'primary',sourceChannelId:video.channelId||''
+      }); added++;
+    }
+    // Worker 成功解析 @handle/频道地址后，保存成稳定的 UC… channel ID，之后同步更稳。
+    for (const resolved of data.channels || []) {
+      const match = state.settings.channels.find(c =>
+        String(c.id || '').trim() === String(resolved.requestedIdentifier || '').trim() ||
+        (c.name && resolved.requestedName && c.name === resolved.requestedName)
+      );
+      if (match && resolved.channelId) {
+        match.id = resolved.channelId;
+        if (!match.name && resolved.channelTitle) match.name = resolved.channelTitle;
       }
     }
-    state.settings.lastSync=new Date().toISOString();saveState();renderAll();showToast(added?`新增 ${added} 个待审核视频`:'没有发现新视频');
-  } catch(error){console.error(error);showToast(`同步失败：${error.message}`);} finally {button.disabled=false;button.textContent=old;}
+    state.settings.lastSync=new Date().toISOString();
+    state.settings.lastSyncError='';
+    saveState();renderAll();
+    if(!silent || added) showToast(added?`发现 ${added} 个新视频，已放入待审核`:'没有发现新视频');
+  } catch(error){
+    console.error(error);
+    state.settings.lastSyncError = String(error.message || error);
+    saveState();
+    if(!silent) showToast(`检查失败：${error.message}`);
+  } finally {
+    youtubeSyncInFlight=false;
+    if(button){button.disabled=false;button.textContent=old;}
+    renderSettings();
+  }
+}
+
+function maybeAutoSyncYouTube() {
+  if (youtubeSyncDue()) syncYouTube({ silent:true });
 }
 
 function saveSettingsFromForm() {
   const rows=[...document.querySelectorAll('.channel-row')];
-  state.settings.apiKey=document.getElementById('apiKeyInput').value.trim();
+  state.settings.workerUrl=normalizedWorkerUrl(document.getElementById('youtubeWorkerUrl').value);
+  state.settings.autoYouTubeSync=document.getElementById('autoYouTubeSync').checked;
+  state.settings.youtubeSyncHours=Math.max(1, Math.min(48, Number(document.getElementById('youtubeSyncHours').value||6)));
+  state.settings.apiKey='';
   state.settings.channels=rows.map(row=>({name:row.querySelector('[data-channel-name]').value.trim(),id:row.querySelector('[data-channel-id]').value.trim(),usage:row.querySelector('[data-channel-usage]')?.value||'primary'})).filter(c=>(c.name||c.id)&&!isRetiredChannelName(c.name));
   state.settings.preferMat=document.getElementById('preferMat').checked;
   state.settings.avoidCrunch=document.getElementById('avoidCrunch').checked;
@@ -4450,7 +4613,7 @@ function bindEvents() {
   document.getElementById('auditLibraryBtn')?.addEventListener('click',()=>clearLegacyVerificationErrors());
   document.getElementById('manualReviewAddBtn').addEventListener('click',openAddVideoDialog);
   document.getElementById('settingsAddVideoBtn').addEventListener('click',openAddVideoDialog);
-  document.getElementById('advancedSyncBtn').addEventListener('click',syncYouTube);
+  document.getElementById('advancedSyncBtn').addEventListener('click',()=>syncYouTube({silent:false}));
   document.getElementById('applyWeeklyChannelsBtn').addEventListener('click',applyWeeklyChannelExclusions);
   document.getElementById('clearWeeklyChannelsBtn').addEventListener('click',clearWeeklyChannelExclusions);
   document.getElementById('searchVideoInAppBtn').addEventListener('click',searchYouTubeForEdit);
@@ -4563,7 +4726,12 @@ function bindEvents() {
     } else {
       state.feedback = state.feedback.filter(f => f.recordId !== recordId);
     }
-    state.feedback.push(record);saveState();document.getElementById('feedbackDialog').close();renderAll();showToast(source==='library'?'已从视频库记录本次训练':'训练记录已保存');
+    state.feedback.push(record);
+    // 新体感立即影响“下周”自动安排，但不打乱已经排好的本周计划。
+    const nextWeekStart = addDays(startOfPlanWeek(), 7);
+    delete state.plansByWeek[nextWeekStart];
+    if (state.planMetaByWeek) delete state.planMetaByWeek[nextWeekStart];
+    saveState();document.getElementById('feedbackDialog').close();renderAll();showToast(source==='library'?'已记录；体感会用于后续排课':'训练记录已保存；体感会用于后续排课');
   });
   document.getElementById('saveEditedVideoBtn').addEventListener('click',e=>{e.preventDefault();saveEditedVideo();});
   document.getElementById('editVideoSearchQuery').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchYouTubeForEdit();}});
@@ -4661,6 +4829,7 @@ function refreshForCurrentDate({ force = false } = {}) {
 function handleAppForeground() {
   refreshForCurrentDate({ force: true });
   updateInstallButtonForDevice();
+  maybeAutoSyncYouTube();
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -4689,3 +4858,4 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 repairRetiredChannelSlots();
 bindEvents();hydrateAssessmentDialog();hydrateMenstrualDialog();renderAll();updateInstallButtonForDevice();
 setTimeout(() => clearLegacyVerificationErrors(), 300);
+setTimeout(() => maybeAutoSyncYouTube(), 1200);

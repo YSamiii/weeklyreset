@@ -35,3 +35,14 @@
 - 时长优先范围约为设置值的 ±20%，硬上限为设置值 + 5 分钟。
 - 15 分钟设置下，12–18 分钟优先，超过 20 分钟的视频不会被自动安排。
 - 升级后自动重建本周与下周计划，并改进浏览器/PWA 缓存更新。
+
+
+## 3.3
+- Personal perceived effort (recent 3 sessions) now feeds automatic planning.
+- Added “挑战一点” for a one-day intensity bump while preserving safety/time limits.
+- “换轻一点” now explicitly chooses a lower-intensity option.
+
+
+## 3.4
+- 新增 Cloudflare Worker + YouTube Data API 自动发现新视频。
+- 详细零基础配置见 `YOUTUBE_AUTO_SYNC_SETUP.md`。

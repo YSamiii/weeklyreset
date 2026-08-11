@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Weekly Reset 3.2.1</title>
+  <title>Weekly Reset 3.4</title>
 </head>
 <body>
   <div class="app-shell">
@@ -21,7 +21,7 @@
       <div class="brand">
         <div class="brand-mark">WR</div>
         <div>
-          <h1>Weekly Reset <span class="brand-version">3.2.1</span></h1>
+          <h1>Weekly Reset <span class="brand-version">3.4</span></h1>
           <p>恢复优先 · 智能排课</p>
         </div>
       </div>
@@ -36,7 +36,7 @@
       </nav>
 
       <div class="sidebar-card">
-        <p class="eyebrow">Weekly Reset 3.2.1</p>
+        <p class="eyebrow">Weekly Reset 3.4</p>
         <strong>恢复状态优先</strong>
         <p>计划服务于身体状态，而不是反过来。</p>
       </div>
@@ -221,19 +221,24 @@
               <button id="settingsAddVideoBtn" class="primary-btn" type="button">手动添加视频</button>
             </div>
 
-            <details class="advanced-settings">
-              <summary>高级：YouTube API 自动同步（可完全忽略）</summary>
+            <details class="advanced-settings" open>
+              <summary>YouTube 新视频自动发现</summary>
               <div class="advanced-settings-body">
-                <label class="field-label">API Key
-                  <input id="apiKeyInput" type="password" placeholder="AIza..." autocomplete="off" />
+                <label class="field-label">Cloudflare Worker 地址
+                  <input id="youtubeWorkerUrl" type="url" placeholder="https://weekly-reset-youtube.你的账号.workers.dev" autocomplete="off" />
                 </label>
-                <p class="helper">只有需要自动同步时才配置。API Key 会保存在当前浏览器。</p>
+                <p class="helper">YouTube API Key 不再保存在 App。它只放在 Cloudflare Worker 的加密 Secret 中。详细设置步骤见压缩包内《YOUTUBE_AUTO_SYNC_SETUP.md》。</p>
+                <label class="switch-row"><span>打开 / 回到 App 时自动检查新视频</span><input id="autoYouTubeSync" type="checkbox" /></label>
+                <label class="field-label">自动检查间隔（小时）
+                  <input id="youtubeSyncHours" type="number" min="1" max="48" step="1" />
+                </label>
+                <div id="youtubeSyncStatus" class="helper"></div>
                 <div id="channelSettings" class="channel-settings"></div>
-                <p class="helper">高强度备用频道的新视频只会进入待审核，非进阶期不会自动排入。</p>
+                <p class="helper">频道栏可粘贴 YouTube 频道地址、@handle 或 UC…频道 ID。抓到的新视频只进入“待审核”，不会直接进入自动排课。</p>
                 <div class="button-row wrap">
                   <button id="addChannelBtn" class="secondary-btn" type="button">增加频道</button>
-                  <button id="advancedSyncBtn" class="secondary-btn" type="button">立即同步</button>
-                  <button id="saveSettingsBtn" class="primary-btn" type="button">保存高级设置</button>
+                  <button id="advancedSyncBtn" class="secondary-btn" type="button">立即检查新视频</button>
+                  <button id="saveSettingsBtn" class="primary-btn" type="button">保存自动同步设置</button>
                 </div>
               </div>
             </details>
