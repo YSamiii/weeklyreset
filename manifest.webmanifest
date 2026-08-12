@@ -1,7 +1,7 @@
 {
-  "name": "Weekly Reset 3.5.1 产后恢复运动计划",
+  "name": "Weekly Reset 3.6 产后恢复运动计划",
   "short_name": "Weekly Reset",
-  "description": "Weekly Reset 3.5.1：每日精力动态排课、共享 YouTube 新视频自动发现、视频库与训练记录",
+  "description": "Weekly Reset 3.6：每日精力动态排课、共享 YouTube 新视频自动发现、视频库与训练记录",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f6f2ea",

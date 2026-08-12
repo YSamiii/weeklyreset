@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 38;
+const APP_DATA_VERSION = 39;
 const DEFAULT_YOUTUBE_BACKEND = 'https://weekly-reset-youtube.vercel.app/api';
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
@@ -7,9 +7,35 @@ const RETIRED_CHANNEL_NAMES = new Set(['jessica valant pilates', 'jessica valant
 function isRetiredChannelName(name = '') { return RETIRED_CHANNEL_NAMES.has(String(name || '').trim().toLowerCase()); }
 
 const focusLabels = {
-  postpartum: '产后核心', mobility: '恢复活动度', pilates: '垫上 Pilates',
-  glutes: '臀部稳定', meditation: '冥想放松', cardio: '有氧'
+  postpartum: '产后核心', mobility: '恢复活动度', pilates: 'Pilates',
+  glutes: '臀部稳定', meditation: '冥想', cardio: '有氧'
 };
+const exerciseTypeLabels = {
+  cardio: '有氧', sculpt: '塑形', strength: '力量训练', pilates: 'Pilates',
+  yoga: '瑜伽', stretch: '拉伸', mobility: '活动度 / 功能恢复', meditation: '冥想'
+};
+function inferExerciseType(video = {}) {
+  if (exerciseTypeLabels[video.exerciseType]) return video.exerciseType;
+  const text = `${video.title || ''} ${video.note || ''} ${video.description || ''}`.toLowerCase();
+  if (/meditat(?:e|ion)|mindfulness|breathwork|sleep meditation/i.test(text)) return 'meditation';
+  if (/pilates/i.test(text)) return 'pilates';
+  if (/yoga|vinyasa|yin yoga|hatha|sun salutation/i.test(text)) return 'yoga';
+  if (/stretch|stretching|flexibility/i.test(text)) return 'stretch';
+  if (/mobility|release|relief|posture|neck pain|back pain|shoulder pain|hip opener/i.test(text)) return 'mobility';
+  if (/cardio|walking workout|walk at home|low impact|hiit|aerobic/i.test(text)) return 'cardio';
+  if (/strength|weights?|dumbbells?|resistance|functional strength/i.test(text)) return 'strength';
+  if (/sculpt|tone|toning|booty|glute|legs?|arms?|full body workout/i.test(text)) return 'sculpt';
+  const legacy = { meditation:'meditation', cardio:'cardio', pilates:'pilates', glutes:'sculpt', mobility:'mobility', postpartum:'pilates' };
+  return legacy[video.focus] || 'mobility';
+}
+function legacyFocusForExerciseType(type, title = '') {
+  if (type === 'cardio') return 'cardio';
+  if (type === 'meditation') return 'meditation';
+  if (type === 'pilates') return 'pilates';
+  if (['stretch','mobility','yoga'].includes(type)) return 'mobility';
+  if (['sculpt','strength'].includes(type)) return /core|postpartum|diastasis|pelvic floor/i.test(title) ? 'postpartum' : 'glutes';
+  return 'mobility';
+}
 const positionLabels = { mat: '垫上为主', mixed: '混合', standing: '站立为主' };
 const riskLabels = { low: '低腹压', medium: '中等腹压', high: '较高腹压' };
 const modeLabels = { recovery: '恢复期', stable: '稳定期', progress: '进阶期' };
@@ -2921,7 +2947,7 @@ function loadState() {
         };
       });
       const personalIds = new Set(personalVideos.map(v => v.id));
-      merged.videos = [...personalVideos, ...sampleVideos.filter(v => !personalIds.has(v.id))];
+      merged.videos = [...personalVideos, ...sampleVideos.filter(v => !personalIds.has(v.id))].map(v => ({ ...v, exerciseType: inferExerciseType(v) }));
       merged.pending = (parsed.pending || []).filter(v => !v.demo && !String(v.id || '').startsWith('pending-demo-'));
       merged.plan = parsedPlan;
       merged.libraryAudit = { ...defaults.libraryAudit, running:false, pending:0 };
@@ -3005,7 +3031,7 @@ function loadState() {
       for (const item of plan) {
         if (item.videoSnapshot || !item.videoId) continue;
         const video = loadedVideoMap.get(String(item.videoId));
-        if (video) item.videoSnapshot = {id:video.id,title:video.title,channel:video.channel,duration:video.duration,focus:video.focus,position:video.position,risk:video.risk,abTraining:!!video.abTraining,pelvicInversion:!!video.pelvicInversion,menstrualEligible:!!video.menstrualEligible,reserveOnly:!!video.reserveOnly,url:video.url,thumbnail:video.thumbnail};
+        if (video) item.videoSnapshot = {id:video.id,title:video.title,channel:video.channel,duration:video.duration,exerciseType:inferExerciseType(video),focus:video.focus,position:video.position,risk:video.risk,abTraining:!!video.abTraining,pelvicInversion:!!video.pelvicInversion,menstrualEligible:!!video.menstrualEligible,reserveOnly:!!video.reserveOnly,url:video.url,thumbnail:video.thumbnail};
       }
     }
     return merged;
@@ -3692,7 +3718,7 @@ function fillMissingPlanSlots(weekStart) {
     const chosen = chooseUniqueVideo(approved, template, used, assessment, index, { date, period, weekStart, rotationStats });
     if (!chosen) return { ...item, date, day:baseTemplate.day, category:template.label, rationale:buildRationale(template, null, assessment, index, {date,period,weekStart,rotationStats}) };
     used.add(chosen.id); changed = true;
-    return { ...item, date, day:baseTemplate.day, category:template.label, videoId:chosen.id, videoSnapshot:{id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,focus:chosen.focus,position:chosen.position,risk:chosen.risk,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail}, periodDay:period.active?period.day:0, rationale:buildRationale(template, chosen, assessment, index, {date,period,weekStart,rotationStats}), generatedAt:new Date().toISOString() };
+    return { ...item, date, day:baseTemplate.day, category:template.label, videoId:chosen.id, videoSnapshot:{id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,exerciseType:inferExerciseType(chosen),focus:chosen.focus,position:chosen.position,risk:chosen.risk,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail}, periodDay:period.active?period.day:0, rationale:buildRationale(template, chosen, assessment, index, {date,period,weekStart,rotationStats}), generatedAt:new Date().toISOString() };
   });
   if (changed) { setPlanForWeek(weekStart, repaired); markPlanLocked(weekStart, 'retired-channel-repair'); }
   return changed;
@@ -3910,7 +3936,7 @@ function renderWeek() {
         <h4>${video ? escapeHtml(video.title) : '休息 / 自主恢复'}</h4>
         ${video ? `<p class="day-channel">${escapeHtml(video.channel)}</p>` : ''}
         <p class="day-rationale">${escapeHtml(item.rationale)}</p>
-        ${video ? `<div class="mini-tags"><span class="mini-tag">${video.duration} 分钟</span><span class="mini-tag">${focusLabels[video.focus]||video.focus}</span><span class="mini-tag">${positionLabels[video.position]}</span>${video.reserveOnly?'<span class="mini-tag reserve-tag">高强度备用</span>':''}</div>` : ''}
+        ${video ? `<div class="mini-tags"><span class="mini-tag">${video.duration} 分钟</span><span class="mini-tag">${exerciseTypeLabels[inferExerciseType(video)]||inferExerciseType(video)}</span><span class="mini-tag">${positionLabels[video.position]}</span>${video.reserveOnly?'<span class="mini-tag reserve-tag">高强度备用</span>':''}</div>` : ''}
         ${actualTrainingMarkup(item.date)}
       </div>
       <div class="day-actions">
@@ -3944,6 +3970,7 @@ function renderLibraryControls() {
   if (preferences.channel !== 'all' && !channels.includes(preferences.channel)) preferences.channel = 'all';
   channelSelect.innerHTML = `<option value="all">全部频道</option>${channels.map(channel => `<option value="${escapeHtml(channel)}">${escapeHtml(channel)}</option>`).join('')}`;
   channelSelect.value = preferences.channel;
+  if (preferences.focus !== 'all' && !exerciseTypeLabels[preferences.focus]) preferences.focus = 'all';
   document.getElementById('libraryFocusFilter').value = preferences.focus;
   document.getElementById('libraryPositionFilter').value = preferences.position;
   document.getElementById('libraryPreferenceFilter').value = preferences.preference;
@@ -4008,7 +4035,7 @@ function filteredVideos() {
   const videos = state.videos.filter(v => v.approved && !v.rejected)
     .filter(v => !q || `${v.title} ${v.channel}`.toLowerCase().includes(q))
     .filter(v => channel === 'all' || v.channel === channel)
-    .filter(v => focus === 'all' || v.focus === focus)
+    .filter(v => focus === 'all' || inferExerciseType(v) === focus)
     .filter(v => position === 'all' || v.position === position)
     .filter(v => preference === 'all' || videoPreference(v) === preference);
   return { videos: sortLibraryVideos(videos, stats), stats };
@@ -4032,7 +4059,7 @@ function renderLibrary() {
       <div class="video-body">
         <h4>${escapeHtml(v.title)}</h4><p>${escapeHtml(v.channel)} · ${v.duration} 分钟</p>
         <p class="video-usage-meta">已使用 ${usage.count} 次${recent}</p>
-        <div class="mini-tags"><span class="mini-tag">${focusLabels[v.focus]||v.focus}</span><span class="mini-tag">${positionLabels[v.position]}</span><span class="mini-tag">${riskLabels[v.risk]}</span>${preference==='favorite'?'<span class="mini-tag preference-favorite-tag">♥ 喜欢</span>':''}${preference==='dislike'?'<span class="mini-tag preference-dislike-tag">不喜欢 · 不排课</span>':''}${v.kneeFriendly?'<span class="mini-tag knee-friendly-tag">膝盖友好</span>':''}${v.reserveOnly?'<span class="mini-tag reserve-tag">高强度备用</span>':''}${v.abTraining?'<span class="mini-tag warning-tag">含腹肌训练</span>':''}${v.pelvicInversion?'<span class="mini-tag warning-tag">含臀桥/骨盆抬高</span>':''}${isStrictMenstrualVideo(v)?'<span class="mini-tag period-safe-tag">生理期可用</span>':'<span class="mini-tag muted-tag">生理期未确认</span>'}${verificationBadge(v)}${v.autoPlanEligible===false&&!v.needsReview?'<span class="mini-tag info-only-tag">仅资料库</span>':''}</div>
+        <div class="mini-tags"><span class="mini-tag">${exerciseTypeLabels[inferExerciseType(v)]||inferExerciseType(v)}</span><span class="mini-tag">${positionLabels[v.position]}</span><span class="mini-tag">${riskLabels[v.risk]}</span>${preference==='favorite'?'<span class="mini-tag preference-favorite-tag">♥ 喜欢</span>':''}${preference==='dislike'?'<span class="mini-tag preference-dislike-tag">不喜欢 · 不排课</span>':''}${v.kneeFriendly?'<span class="mini-tag knee-friendly-tag">膝盖友好</span>':''}${v.reserveOnly?'<span class="mini-tag reserve-tag">高强度备用</span>':''}${v.abTraining?'<span class="mini-tag warning-tag">含腹肌训练</span>':''}${v.pelvicInversion?'<span class="mini-tag warning-tag">含臀桥/骨盆抬高</span>':''}${isStrictMenstrualVideo(v)?'<span class="mini-tag period-safe-tag">生理期可用</span>':'<span class="mini-tag muted-tag">生理期未确认</span>'}${verificationBadge(v)}${v.autoPlanEligible===false&&!v.needsReview?'<span class="mini-tag info-only-tag">仅资料库</span>':''}</div>
         ${v.verificationNote ? `<p class="verification-note">${escapeHtml(v.verificationNote)}</p>` : ''}
         ${v.originalChannel && v.originalChannel !== v.channel ? `<p class="original-channel">原标注频道：${escapeHtml(v.originalChannel)}</p>` : ''}
         <div class="video-footer video-footer-wrap">
@@ -4201,7 +4228,7 @@ window.swapPlan = function(date) {
   const chosen=candidates[0];
   if(!chosen){showToast(period.active ? '没有其他适合当前生理期日期的更轻视频' : '没有符合时长和安全限制的更轻视频');return;}
   item.videoId=chosen.id;
-  item.videoSnapshot={id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,focus:chosen.focus,position:chosen.position,risk:chosen.risk,abTraining:!!chosen.abTraining,pelvicInversion:!!chosen.pelvicInversion,menstrualEligible:!!chosen.menstrualEligible,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail};
+  item.videoSnapshot={id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,exerciseType:inferExerciseType(chosen),focus:chosen.focus,position:chosen.position,risk:chosen.risk,abTraining:!!chosen.abTraining,pelvicInversion:!!chosen.pelvicInversion,menstrualEligible:!!chosen.menstrualEligible,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail};
   item.periodDay=period.active ? period.day : 0;
   item.category=period.active ? template.label : item.category;
   item.rationale=`今日手动选择“换轻一点”：个人体感预计 ${personalVideoEffort(chosen).toFixed(1)}/5；仍遵守时长、安全与跨周不重复限制。`;
@@ -4241,7 +4268,7 @@ window.challengePlan = function(date) {
   const chosen = candidates[0];
   if (!chosen) { showToast('没有符合当前时长与安全限制、且比现有计划稍强的视频'); return; }
   item.videoId=chosen.id;
-  item.videoSnapshot={id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,focus:chosen.focus,position:chosen.position,risk:chosen.risk,abTraining:!!chosen.abTraining,pelvicInversion:!!chosen.pelvicInversion,menstrualEligible:!!chosen.menstrualEligible,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail};
+  item.videoSnapshot={id:chosen.id,title:chosen.title,channel:chosen.channel,duration:chosen.duration,exerciseType:inferExerciseType(chosen),focus:chosen.focus,position:chosen.position,risk:chosen.risk,abTraining:!!chosen.abTraining,pelvicInversion:!!chosen.pelvicInversion,menstrualEligible:!!chosen.menstrualEligible,reserveOnly:!!chosen.reserveOnly,url:chosen.url,thumbnail:chosen.thumbnail};
   item.rationale=`今日手动选择“挑战一点”：从约 ${currentEffort.toFixed(1)}/5 提升到约 ${personalVideoEffort(chosen).toFixed(1)}/5；仍遵守疼痛、核心安全、时长与跨周不重复限制。`;
   setPlanForWeek(weekStart, weekPlan);
   saveState();renderAll();showToast('已换成稍有挑战的训练');
@@ -4307,7 +4334,7 @@ window.openReview = function(id) {
   const v=state.pending.find(x=>x.id===id); if(!v)return;
   document.getElementById('reviewVideoId').value=id; document.getElementById('reviewDialogTitle').textContent=v.title;
   const text=`${v.title} ${v.description}`.toLowerCase();
-  document.getElementById('reviewFocus').value=/postpartum|postnatal|diastasis/.test(text)?'postpartum':/stretch|mobility|recovery/.test(text)?'mobility':/glute|booty/.test(text)?'glutes':/meditation|breath/.test(text)?'meditation':/cardio|hiit|walk/.test(text)?'cardio':'pilates';
+  document.getElementById('reviewFocus').value=inferExerciseType(v);
   document.getElementById('reviewPosition').value=/standing|walk|cardio/.test(text)?'standing':'mat';
   document.getElementById('reviewRisk').value=/abs|crunch|hiit/.test(text)?'medium':'low';
   document.getElementById('reviewLevel').value=(v.sourceUsage==='reserve'||/heather robertson|mizi/i.test(v.channel))?'progress':'stable';
@@ -4336,7 +4363,7 @@ window.openEditVideo = function(id) {
   document.getElementById('editVideoTitle').value = video.title || '';
   document.getElementById('editVideoChannel').value = video.channel || '';
   document.getElementById('editVideoDuration').value = video.duration || 15;
-  document.getElementById('editVideoFocus').value = video.focus || 'pilates';
+  document.getElementById('editVideoFocus').value = inferExerciseType(video);
   document.getElementById('editVideoPosition').value = video.position || 'mat';
   document.getElementById('editVideoRisk').value = video.risk || 'low';
   document.getElementById('editVideoLevel').value = video.level || 'stable';
@@ -4435,7 +4462,8 @@ function saveEditedVideo() {
     ...previous,
     id, url, title, channel,
     duration:Number(document.getElementById('editVideoDuration').value || 15),
-    focus:document.getElementById('editVideoFocus').value,
+    exerciseType:document.getElementById('editVideoFocus').value,
+    focus:legacyFocusForExerciseType(document.getElementById('editVideoFocus').value, document.getElementById('editVideoTitle')?.value || video.title),
     position:document.getElementById('editVideoPosition').value,
     risk:document.getElementById('editVideoRisk').value,
     level:reserveOnly ? 'progress' : document.getElementById('editVideoLevel').value,
@@ -4455,7 +4483,7 @@ function saveEditedVideo() {
   allPlanItems().forEach(item => {
     if (item.videoId !== originalId) return;
     item.videoId = id;
-    if (weekRelation(weekStartForDate(item.date)) !== 'past') item.videoSnapshot = {id:updatedVideo.id,title:updatedVideo.title,channel:updatedVideo.channel,duration:updatedVideo.duration,focus:updatedVideo.focus,position:updatedVideo.position,risk:updatedVideo.risk,abTraining:!!updatedVideo.abTraining,pelvicInversion:!!updatedVideo.pelvicInversion,menstrualEligible:!!updatedVideo.menstrualEligible,reserveOnly:!!updatedVideo.reserveOnly,url:updatedVideo.url,thumbnail:updatedVideo.thumbnail};
+    if (weekRelation(weekStartForDate(item.date)) !== 'past') item.videoSnapshot = {id:updatedVideo.id,title:updatedVideo.title,channel:updatedVideo.channel,duration:updatedVideo.duration,exerciseType:inferExerciseType(updatedVideo),focus:updatedVideo.focus,position:updatedVideo.position,risk:updatedVideo.risk,abTraining:!!updatedVideo.abTraining,pelvicInversion:!!updatedVideo.pelvicInversion,menstrualEligible:!!updatedVideo.menstrualEligible,reserveOnly:!!updatedVideo.reserveOnly,url:updatedVideo.url,thumbnail:updatedVideo.thumbnail};
   });
   state.feedback.forEach(record => {
     if (record.videoId === originalId) {
@@ -4829,12 +4857,12 @@ function bindEvents() {
     if(state.videos.some(v=>v.id===id)){showToast('这个 YouTube 视频链接已经在视频库中');return;}
     if (isRetiredChannelName(channel)) { showToast('Jessica Valant 已从候选频道中移除'); return; }
     const reserveOnly=/heather robertson/i.test(channel);
-    state.videos.push({id,title,channel,url,duration:Number(document.getElementById('videoDuration').value||15),focus:document.getElementById('videoFocus').value,position:document.getElementById('videoPosition').value,risk:document.getElementById('videoRisk').value,level:reserveOnly?'progress':'stable',drFriendly:document.getElementById('videoRisk').value==='low',crunchHeavy:false,abTraining:document.getElementById('videoAbTraining').checked,pelvicInversion:document.getElementById('videoPelvicInversion').checked,menstrualEligible:document.getElementById('videoMenstrualEligible').checked&&!document.getElementById('videoAbTraining').checked&&!document.getElementById('videoPelvicInversion').checked,reserveOnly,approved:true,rejected:false,demo:false,thumbnail:youtubeThumbnail(id),publishedAt:new Date().toISOString(),addedAt:new Date().toISOString(),note:reserveOnly?'手动添加；高强度备用频道':'手动添加',verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
+    state.videos.push({id,title,channel,url,duration:Number(document.getElementById('videoDuration').value||15),exerciseType:document.getElementById('videoFocus').value,focus:legacyFocusForExerciseType(document.getElementById('videoFocus').value,title),position:document.getElementById('videoPosition').value,risk:document.getElementById('videoRisk').value,level:reserveOnly?'progress':'stable',drFriendly:document.getElementById('videoRisk').value==='low',crunchHeavy:false,abTraining:document.getElementById('videoAbTraining').checked,pelvicInversion:document.getElementById('videoPelvicInversion').checked,menstrualEligible:document.getElementById('videoMenstrualEligible').checked&&!document.getElementById('videoAbTraining').checked&&!document.getElementById('videoPelvicInversion').checked,reserveOnly,approved:true,rejected:false,demo:false,thumbnail:youtubeThumbnail(id),publishedAt:new Date().toISOString(),addedAt:new Date().toISOString(),note:reserveOnly?'手动添加；高强度备用频道':'手动添加',verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
     saveState();document.getElementById('videoDialog').close();document.getElementById('videoForm').reset();renderAll();showToast('已加入视频库；现有周计划保持不变');
   });
   document.getElementById('approveVideoBtn').addEventListener('click',e=>{
     e.preventDefault(); const id=document.getElementById('reviewVideoId').value; const pending=state.pending.find(v=>v.id===id); if(!pending)return;
-    state.videos.push({...pending,focus:document.getElementById('reviewFocus').value,position:document.getElementById('reviewPosition').value,risk:document.getElementById('reviewRisk').value,level:document.getElementById('reviewLevel').value,crunchHeavy:document.getElementById('reviewCrunch').checked,drFriendly:document.getElementById('reviewDR').checked,abTraining:document.getElementById('reviewAbTraining').checked,pelvicInversion:document.getElementById('reviewPelvicInversion').checked,menstrualEligible:document.getElementById('reviewMenstrualEligible').checked&&!document.getElementById('reviewAbTraining').checked&&!document.getElementById('reviewPelvicInversion').checked,reserveOnly:pending.sourceUsage==='reserve',addedAt:pending.addedAt||new Date().toISOString(),note:document.getElementById('reviewNote').value.trim(),approved:true,rejected:false,verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
+    state.videos.push({...pending,exerciseType:document.getElementById('reviewFocus').value,focus:legacyFocusForExerciseType(document.getElementById('reviewFocus').value,pending.title),position:document.getElementById('reviewPosition').value,risk:document.getElementById('reviewRisk').value,level:document.getElementById('reviewLevel').value,crunchHeavy:document.getElementById('reviewCrunch').checked,drFriendly:document.getElementById('reviewDR').checked,abTraining:document.getElementById('reviewAbTraining').checked,pelvicInversion:document.getElementById('reviewPelvicInversion').checked,menstrualEligible:document.getElementById('reviewMenstrualEligible').checked&&!document.getElementById('reviewAbTraining').checked&&!document.getElementById('reviewPelvicInversion').checked,reserveOnly:pending.sourceUsage==='reserve',addedAt:pending.addedAt||new Date().toISOString(),note:document.getElementById('reviewNote').value.trim(),approved:true,rejected:false,verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
     pending.approved=true;saveState();document.getElementById('reviewDialog').close();renderAll();showToast('已批准进入视频库；现有周计划保持不变');
   });
   document.getElementById('rejectVideoBtn').addEventListener('click',e=>{e.preventDefault();const id=document.getElementById('reviewVideoId').value;const pending=state.pending.find(v=>v.id===id);if(pending)pending.rejected=true;saveState();document.getElementById('reviewDialog').close();renderAll();showToast('已标记为不纳入');});
