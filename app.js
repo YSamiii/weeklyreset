@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 39;
+const APP_DATA_VERSION = 40;
 const DEFAULT_YOUTUBE_BACKEND = 'https://weekly-reset-youtube.vercel.app/api';
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
@@ -3566,20 +3566,29 @@ function excludedChannelSet(weekStart = selectedWeekStart) {
   return new Set(weekPreferencesFor(weekStart).excludedChannels.map(normalizedChannelName));
 }
 function isChannelExcluded(channel, weekStart = selectedWeekStart) { return excludedChannelSet(weekStart).has(normalizedChannelName(channel)); }
+function candidateChannelSet() {
+  return new Set((state.settings?.channels || [])
+    .map(channel => normalizedChannelName(channel?.name))
+    .filter(Boolean));
+}
 function approvedPlanVideos(weekStart = selectedWeekStart) {
   const excluded = excludedChannelSet(weekStart);
-  return state.videos.filter(v => v.approved && !v.rejected && v.autoPlanEligible !== false && !v.needsReview && !excluded.has(normalizedChannelName(v.channel)));
+  const candidates = candidateChannelSet();
+  return state.videos.filter(v => {
+    const channelKey = normalizedChannelName(v.channel);
+    return v.approved && !v.rejected && v.autoPlanEligible !== false && !v.needsReview
+      && candidates.has(channelKey)
+      && !excluded.has(channelKey);
+  });
 }
 function availableWeekChannels() {
   const names = [];
   const seen = new Set();
-  const add = name => {
-    const clean = String(name || '').trim(); const key = normalizedChannelName(clean);
-    if (clean && !seen.has(key)) { seen.add(key); names.push(clean); }
-  };
-  defaultChannels.forEach(c => add(c.name));
-  (state.settings.channels || []).forEach(c => add(c.name));
-  state.videos.filter(v => v.approved && !v.rejected).forEach(v => add(v.channel));
+  for (const channel of (state.settings?.channels || [])) {
+    const clean = String(channel?.name || '').trim();
+    const key = normalizedChannelName(clean);
+    if (clean && key && !seen.has(key)) { seen.add(key); names.push(clean); }
+  }
   return names;
 }
 function actualRecordsForDate(date) {
@@ -3618,9 +3627,8 @@ function verificationBadge(video) {
 function renderLibraryAuditStatus() {
   const host = document.getElementById('libraryAuditStatus');
   if (!host) return;
-  const starterCount = state.videos.filter(video => video.starter && video.approved && !video.rejected).length;
-  const manualCount = state.videos.filter(video => !video.starter && video.approved && !video.rejected).length;
-  host.innerHTML = `<div class="audit-panel"><div><strong>v17 定向纠错</strong><p>已移除 47EwctVwir4、zYInbggfukg、32DsAJUru8E 三条误标为 Pregnancy and Postpartum TV 的内置视频。内置频道标签仅用于整理，不再显示为“全库已核实”；发现不符时可在视频库中直接修改。</p></div><span class="audit-ok-count">已移除 3 条</span></div>`;
+  host.innerHTML = '';
+  host.hidden = true;
 }
 
 window.verifyVideoMetadata = function(id) {
