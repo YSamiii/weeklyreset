@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Weekly Reset 3.5</title>
+  <title>Weekly Reset 3.5.1</title>
 </head>
 <body>
   <div class="app-shell">
@@ -21,7 +21,7 @@
       <div class="brand">
         <div class="brand-mark">WR</div>
         <div>
-          <h1>Weekly Reset <span class="brand-version">3.5</span></h1>
+          <h1>Weekly Reset <span class="brand-version">3.5.1</span></h1>
           <p>恢复优先 · 智能排课</p>
         </div>
       </div>
@@ -36,7 +36,7 @@
       </nav>
 
       <div class="sidebar-card">
-        <p class="eyebrow">Weekly Reset 3.5</p>
+        <p class="eyebrow">Weekly Reset 3.5.1</p>
         <strong>恢复状态优先</strong>
         <p>计划服务于身体状态，而不是反过来。</p>
       </div>
@@ -224,10 +224,17 @@
             <details class="advanced-settings" open>
               <summary>YouTube 新视频自动发现</summary>
               <div class="advanced-settings-body">
-                <label class="field-label">YouTube 后端地址（Vercel）
-                  <input id="youtubeWorkerUrl" type="url" placeholder="https://weekly-reset-youtube.你的账号.workers.dev" autocomplete="off" />
-                </label>
-                <p class="helper">YouTube API Key 不再保存在 App。它只放在 Vercel 后端 的加密 Secret 中。详细设置步骤见压缩包内《YOUTUBE_AUTO_SYNC_SETUP.md》。</p>
+                <div class="assessment-banner"><div><strong>共享 YouTube 后端已预置</strong><p>你和少量朋友可以直接添加各自的频道并抓取新视频，不需要自己配置 API Key。每个人的频道、视频库和训练记录仍保存在自己的设备中。</p></div><span class="mode-tag">已连接</span></div>
+                <details class="advanced-settings">
+                  <summary>高级设置：自定义后端地址</summary>
+                  <div class="advanced-settings-body">
+                    <label class="field-label">YouTube 后端地址（Vercel）
+                      <input id="youtubeWorkerUrl" type="url" placeholder="https://weekly-reset-youtube.vercel.app/api" autocomplete="off" />
+                    </label>
+                    <p class="helper">通常不需要修改。API Key 只保存在 Vercel Environment Variable 中，不会写进 App。</p>
+                    <button class="secondary-btn" type="button" onclick="restoreDefaultYouTubeBackend()">恢复默认共享后端</button>
+                  </div>
+                </details>
                 <label class="switch-row"><span>打开 / 回到 App 时自动检查新视频</span><input id="autoYouTubeSync" type="checkbox" /></label>
                 <label class="field-label">自动检查间隔（小时）
                   <input id="youtubeSyncHours" type="number" min="1" max="48" step="1" />

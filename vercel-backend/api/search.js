@@ -1,7 +1,9 @@
+import { rateLimit } from './_lib/rate-limit.js';
 import { handleOptions, sendJson, requireKey, yt, isoMinutes } from './_lib/youtube.js';
 export default async function handler(req,res){
   const c=handleOptions(req,res); if(c===true) return;
   if(req.method!=='POST') return sendJson(res,405,{error:'Method not allowed'},c.headers);
+  if(!rateLimit(req,res,{name:'search',limit:60})) return;
   const key=requireKey(res,c.headers); if(!key) return;
   try {
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});

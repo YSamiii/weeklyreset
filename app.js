@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 37;
+const APP_DATA_VERSION = 38;
+const DEFAULT_YOUTUBE_BACKEND = 'https://weekly-reset-youtube.vercel.app/api';
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
 const RETIRED_CHANNEL_NAMES = new Set(['jessica valant pilates', 'jessica valant']);
@@ -2737,7 +2738,7 @@ function defaultState() {
     },
     settings: {
       apiKey: '', // legacy; 3.4.1 起不再使用或保存新的 API Key
-      workerUrl: '',
+      workerUrl: DEFAULT_YOUTUBE_BACKEND,
       autoYouTubeSync: true,
       youtubeSyncHours: 6,
       channels: structuredClone(defaultChannels),
@@ -2745,7 +2746,8 @@ function defaultState() {
       avoidCrunch: true,
       autoDowngrade: true,
       miziGap: 14,
-      lastSync: null
+      lastSync: null,
+      shareOnboardingSeen: false
     }
   };
 }
@@ -2857,6 +2859,9 @@ function loadState() {
       libraryAudit: { ...defaults.libraryAudit, ...(parsed.libraryAudit || {}), running: false },
       settings: { ...defaults.settings, ...(parsed.settings || {}) }
     };
+    // 3.5.1 分享版：默认使用预置的 Vercel 后端。旧版没有地址或仍指向 workers.dev 时自动迁移。
+    const savedBackend = normalizedWorkerUrl(merged.settings.workerUrl || '');
+    if (!savedBackend || /\.workers\.dev(?:\/|$)/i.test(savedBackend)) merged.settings.workerUrl = DEFAULT_YOUTUBE_BACKEND;
     merged.menstrual.duration = Math.min(10, Math.max(1, Number(merged.menstrual.duration || 5)));
     merged.menstrual.severity = Math.min(5, Math.max(1, Number(merged.menstrual.severity || 3)));
     merged.menstrual.symptoms = Array.isArray(merged.menstrual.symptoms) ? merged.menstrual.symptoms : [];
@@ -4079,7 +4084,7 @@ function renderInsights() {
 }
 
 function renderSettings() {
-  document.getElementById('youtubeWorkerUrl').value = state.settings.workerUrl || '';
+  document.getElementById('youtubeWorkerUrl').value = state.settings.workerUrl || DEFAULT_YOUTUBE_BACKEND;
   document.getElementById('autoYouTubeSync').checked = state.settings.autoYouTubeSync !== false;
   document.getElementById('youtubeSyncHours').value = state.settings.youtubeSyncHours || 6;
   document.getElementById('preferMat').checked = !!state.settings.preferMat;
@@ -4095,9 +4100,9 @@ function renderSettings() {
   document.getElementById('channelSettings').innerHTML = channels.map((c,i)=>`<div class="channel-row"><input data-channel-name="${i}" value="${escapeHtml(c.name)}" placeholder="频道名称"><input data-channel-id="${i}" value="${escapeHtml(c.id)}" placeholder="频道地址 / @handle / UC... ID"><select data-channel-usage="${i}" aria-label="频道用途"><option value="primary" ${c.usage==='primary'?'selected':''}>主要候选</option><option value="secondary" ${c.usage==='secondary'?'selected':''}>次要候选</option><option value="occasional" ${c.usage==='occasional'?'selected':''}>低频使用</option><option value="reserve" ${c.usage==='reserve'?'selected':''}>高强度备用</option></select><button onclick="removeChannel(${i})" aria-label="删除">×</button></div>`).join('');
   const syncStatus = document.getElementById('youtubeSyncStatus');
   if (syncStatus) {
-    if (!state.settings.workerUrl) syncStatus.textContent = '尚未连接 Vercel 后端。完成一次设置后即可自动检查。';
+    if (!normalizedWorkerUrl(state.settings.workerUrl)) syncStatus.textContent = '共享后端未连接；可在高级设置恢复默认地址。';
     else if (state.settings.lastSync) syncStatus.textContent = `上次检查：${new Date(state.settings.lastSync).toLocaleString('zh-CN', { timeZone: TZ })}`;
-    else syncStatus.textContent = '后端已填写；尚未成功检查。';
+    else syncStatus.textContent = '共享后端已连接；尚未成功检查。';
   }
 }
 function setWeekView(weekStart) {
@@ -4344,7 +4349,7 @@ window.openEditVideo = function(id) {
   document.getElementById('editVideoNote').value = video.note || '';
   document.getElementById('editVideoSearchResults').innerHTML = '';
   const inAppSearchButton = document.getElementById('searchVideoInAppBtn');
-  const hasWorker = !!normalizedWorkerUrl(state.settings.workerUrl);
+  const hasWorker = !!normalizedWorkerUrl(state.settings.workerUrl || DEFAULT_YOUTUBE_BACKEND);
   inAppSearchButton.classList.toggle('hidden', !hasWorker);
   setEditSearchStatus(hasWorker ? '可通过安全 Worker 在 App 内搜索，或打开 YouTube 搜索后粘贴单个视频链接。' : '连接 Vercel 后端 后可在 App 内搜索；也可以打开 YouTube 搜索后粘贴单个视频链接。');
   document.getElementById('editVideoDialog').showModal();
@@ -4358,7 +4363,7 @@ function openExternalVideoSearch() {
 
 async function searchYouTubeForEdit() {
   const query = document.getElementById('editVideoSearchQuery').value.trim();
-  const workerUrl = normalizedWorkerUrl(state.settings.workerUrl);
+  const workerUrl = normalizedWorkerUrl(state.settings.workerUrl || DEFAULT_YOUTUBE_BACKEND);
   if (!query) { showToast('请先输入搜索关键词'); return; }
   if (!workerUrl) {
     setEditSearchStatus('尚未连接 Vercel 后端。可点击“打开 YouTube 搜索”，然后粘贴正确视频链接。', true);
@@ -4472,7 +4477,15 @@ window.removeVideo = function(id) {
 };
 window.removeChannel = function(index){ state.settings.channels.splice(index,1); saveState();renderSettings(); };
 
+window.restoreDefaultYouTubeBackend = function() {
+  state.settings.workerUrl = DEFAULT_YOUTUBE_BACKEND;
+  saveState();
+  renderSettings();
+  showToast('已恢复共享 YouTube 后端');
+};
+
 let youtubeSyncInFlight = false;
+let lastManualYouTubeSyncAt = 0;
 
 function normalizedWorkerUrl(value = '') {
   return String(value || '').trim().replace(/\/+$/, '');
@@ -4480,7 +4493,7 @@ function normalizedWorkerUrl(value = '') {
 
 function youtubeSyncDue() {
   if (state.settings.autoYouTubeSync === false) return false;
-  if (!normalizedWorkerUrl(state.settings.workerUrl)) return false;
+  if (!normalizedWorkerUrl(state.settings.workerUrl || DEFAULT_YOUTUBE_BACKEND)) return false;
   if (!(state.settings.channels || []).some(c => String(c.id || '').trim())) return false;
   const hours = Math.max(1, Number(state.settings.youtubeSyncHours || 6));
   const last = Date.parse(state.settings.lastSync || '');
@@ -4489,8 +4502,13 @@ function youtubeSyncDue() {
 
 async function syncYouTube({ silent = false } = {}) {
   if (youtubeSyncInFlight) return;
+  if (!silent && Date.now() - lastManualYouTubeSyncAt < 30 * 1000) {
+    showToast('刚检查过，请 30 秒后再试');
+    return;
+  }
+  if (!silent) lastManualYouTubeSyncAt = Date.now();
   saveSettingsFromForm();
-  const workerUrl = normalizedWorkerUrl(state.settings.workerUrl);
+  const workerUrl = normalizedWorkerUrl(state.settings.workerUrl || DEFAULT_YOUTUBE_BACKEND);
   const channels = (state.settings.channels || []).filter(c => String(c.id || '').trim());
   if(!workerUrl){ if(!silent){showToast('请先填写 YouTube 后端地址（Vercel）');switchView('settings');} return; }
   if(!channels.length){ if(!silent){showToast('请至少为一个频道填写频道地址、@handle 或频道 ID');switchView('settings');} return; }
@@ -4551,7 +4569,7 @@ function maybeAutoSyncYouTube() {
 
 function saveSettingsFromForm() {
   const rows=[...document.querySelectorAll('.channel-row')];
-  state.settings.workerUrl=normalizedWorkerUrl(document.getElementById('youtubeWorkerUrl').value);
+  state.settings.workerUrl=normalizedWorkerUrl(document.getElementById('youtubeWorkerUrl').value) || DEFAULT_YOUTUBE_BACKEND;
   state.settings.autoYouTubeSync=document.getElementById('autoYouTubeSync').checked;
   state.settings.youtubeSyncHours=Math.max(1, Math.min(48, Number(document.getElementById('youtubeSyncHours').value||6)));
   state.settings.apiKey='';
@@ -4920,5 +4938,10 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 
 repairRetiredChannelSlots();
 bindEvents();hydrateAssessmentDialog();hydrateMenstrualDialog();renderAll();updateInstallButtonForDevice();
+if (!state.settings.shareOnboardingSeen) {
+  state.settings.shareOnboardingSeen = true;
+  saveState();
+  setTimeout(() => showToast('自动抓取已可用：到“设置 → YouTube 新视频自动发现”添加你喜欢的频道'), 500);
+}
 setTimeout(() => clearLegacyVerificationErrors(), 300);
 setTimeout(() => maybeAutoSyncYouTube(), 1200);
