@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Weekly Reset 3.4.1</title>
+  <title>Weekly Reset 3.5</title>
 </head>
 <body>
   <div class="app-shell">
@@ -21,7 +21,7 @@
       <div class="brand">
         <div class="brand-mark">WR</div>
         <div>
-          <h1>Weekly Reset <span class="brand-version">3.4.1</span></h1>
+          <h1>Weekly Reset <span class="brand-version">3.5</span></h1>
           <p>恢复优先 · 智能排课</p>
         </div>
       </div>
@@ -36,7 +36,7 @@
       </nav>
 
       <div class="sidebar-card">
-        <p class="eyebrow">Weekly Reset 3.4.1</p>
+        <p class="eyebrow">Weekly Reset 3.5</p>
         <strong>恢复状态优先</strong>
         <p>计划服务于身体状态，而不是反过来。</p>
       </div>
@@ -292,12 +292,10 @@
 
   <dialog id="assessmentDialog" class="app-dialog">
     <form method="dialog" id="assessmentForm">
-      <div class="dialog-heading"><div><p class="eyebrow">每周五填写</p><h3>下周身体状态</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">周计划基础设置</p><h3>身体状态与可用时间</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <p class="helper" style="margin-top:-4px">不再预测下周精力。周计划默认按正常精力 3/5 生成；实际精力每天在首页 Check-in。</p>
       <div class="form-grid">
-        <label class="field-label">睡眠与精神 <span id="energyValue">3</span>/5
-          <input id="energyRange" type="range" min="1" max="5" value="3" />
-        </label>
-        <label class="field-label">带娃与步行负荷 <span id="loadValue">3</span>/5
+        <label class="field-label">近期带娃与步行负荷 <span id="loadValue">3</span>/5
           <input id="loadRange" type="range" min="1" max="5" value="3" />
         </label>
         <label class="field-label">每天可运动时间
@@ -321,7 +319,22 @@
       <label class="field-label">补充说明
         <textarea id="assessmentNote" rows="3" placeholder="例如：本周抱娃很多，右肩前侧酸。"></textarea>
       </label>
-      <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveAssessmentBtn" value="default" class="primary-btn">保存并生成</button></div>
+      <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveAssessmentBtn" value="default" class="primary-btn">保存并从今天更新</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="dailyEnergyDialog" class="app-dialog">
+    <form method="dialog" id="dailyEnergyForm">
+      <div class="dialog-heading"><div><p class="eyebrow">每日 Check-in · <span id="dailyEnergyDateLabel"></span></p><h3>今天精力怎么样？</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <p class="helper">精力只影响今天。1–2/5 会建议换轻一点；3/5 按原计划；4–5/5 可选择挑战一点。不会因为今天很累就改掉明天的安排。</p>
+      <div class="daily-energy-options">
+        <label><input type="radio" name="dailyEnergy" value="1"><span><strong>1</strong><small>很累</small></span></label>
+        <label><input type="radio" name="dailyEnergy" value="2"><span><strong>2</strong><small>偏累</small></span></label>
+        <label><input type="radio" name="dailyEnergy" value="3" checked><span><strong>3</strong><small>正常</small></span></label>
+        <label><input type="radio" name="dailyEnergy" value="4"><span><strong>4</strong><small>不错</small></span></label>
+        <label><input type="radio" name="dailyEnergy" value="5"><span><strong>5</strong><small>很好</small></span></label>
+      </div>
+      <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveDailyEnergyBtn" value="default" class="primary-btn">保存今日状态</button></div>
     </form>
   </dialog>
 

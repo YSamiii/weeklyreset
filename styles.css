@@ -547,3 +547,13 @@ body { background: radial-gradient(circle at 80% 0%, rgba(225,233,226,.65), tran
 .preference-favorite-tag { background:#f7e7e8!important; color:#8d3f49!important; }
 .preference-dislike-tag { background:#ececeb!important; color:#5c5b55!important; }
 .knee-friendly-tag { background:#e9f2ee!important; color:#356252!important; }
+
+/* 3.5 — daily energy check-in */
+.daily-energy-options{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:18px 0 8px}
+.daily-energy-options label{cursor:pointer}
+.daily-energy-options input{position:absolute;opacity:0;pointer-events:none}
+.daily-energy-options span{display:flex;min-height:78px;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid var(--line,#d9ddd8);border-radius:16px;background:var(--surface,#fff);transition:.15s ease}
+.daily-energy-options strong{font-size:1.35rem}
+.daily-energy-options small{font-size:.78rem;opacity:.72}
+.daily-energy-options input:checked+span{border-color:#355f4f;box-shadow:0 0 0 2px rgba(53,95,79,.12);background:#edf3ef}
+@media(max-width:620px){.daily-energy-options{gap:5px}.daily-energy-options span{min-height:68px;border-radius:12px}.daily-energy-options small{font-size:.7rem}}
