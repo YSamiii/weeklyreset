@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 41;
+const APP_DATA_VERSION = 42;
 const DEFAULT_YOUTUBE_BACKEND = 'https://weekly-reset-youtube.vercel.app/api';
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
@@ -12,27 +12,57 @@ const focusLabels = {
 };
 const exerciseTypeLabels = {
   cardio: '有氧', sculpt: '塑形', strength: '力量训练', pilates: 'Pilates',
-  yoga: '瑜伽', stretch: '拉伸', mobility: '活动度 / 功能恢复', meditation: '冥想'
+  yoga: '瑜伽', stretch: '拉伸', mobility: '活动度 / 功能恢复', meditation: '冥想',
+  unclassified: '待确认'
 };
+
+// 3.7.1 严格运动类型标准：课程“结构”优先于目标/身体部位。
+// Pilates：必须明确是 Pilates 方法或标题直接标注 Pilates。
+// 瑜伽：明确 Yoga / Vinyasa / Yin / Hatha / Asana 等瑜伽体系。
+// 拉伸：主体为静态/缓慢伸展与柔韧性，不是 Yoga/Pilates 课程。
+// 活动度/功能恢复：主体为关节活动、动作控制、康复/姿势/疼痛管理，不以静态拉伸为主。
+function classifyExerciseType(video = {}) {
+  if (video.exerciseTypeManual && exerciseTypeLabels[video.exerciseType]) return video.exerciseType;
+  const title = String(video.title || '').toLowerCase();
+  const detail = `${video.description || ''} ${video.note || ''}`.toLowerCase();
+  const text = `${title} ${detail}`;
+
+  // 冥想优先：Yoga Nidra 在本 App 中按冥想处理，因为主体是引导放松/意识练习而非体式流动。
+  if (/\b(?:meditation|mindfulness|breathwork|guided relaxation|sleep meditation|yoga nidra)\b/i.test(text)) return 'meditation';
+
+  // 课程体系优先于“stretch / relief”等目标词。
+  if (/\bpilates\b/i.test(title) || /\bpilates\b/i.test(detail)) return 'pilates';
+  if (/\b(?:yoga|vinyasa|hatha|asana|sun salutation|yin yoga|restorative yoga|power yoga)\b/i.test(title) ||
+      /\b(?:vinyasa|hatha|asana|sun salutation|yin yoga|restorative yoga|power yoga)\b/i.test(detail)) return 'yoga';
+
+  // “Mobility” 是明确的方法词：只要课程明确标为 mobility / joint mobility / CARs 等，优先归活动度，
+  // 即使标题同时出现 dynamic stretch / flexibility，也不再被“stretch”抢走。
+  const explicitMobility = /\b(?:mobility|mobilization|joint mobility|controlled articular rotations?|cars|joint circles?|range of motion|rom)\b/i.test(text)
+    || /\b(?:shoulder|hip|ankle|thoracic|spine|neck) mobility\b/i.test(text);
+  if (explicitMobility) return 'mobility';
+
+  // 明确“拉伸/柔韧性”时归拉伸；即使目标是 pain relief，也不归 mobility。
+  if (/\b(?:stretch|stretches|stretching|flexibility|flexible)\b/i.test(title) ||
+      /\b(?:stretching routine|static stretch|full body stretch)\b/i.test(detail)) return 'stretch';
+
+  // 功能恢复：没有明确 stretch/yoga/pilates 结构时，康复、姿势重置、疼痛管理动作才归这里。
+  if (/\b(?:rehab|rehabilitation|physio|physical therapy|functional recovery|posture reset|postural exercises?|pain relief exercises?|release routine|somatic movement)\b/i.test(text)) return 'mobility';
+
+  if (/\b(?:cardio|walking workout|walk at home|low impact cardio|hiit|aerobic|dance cardio)\b/i.test(text)) return 'cardio';
+  if (/\b(?:strength|weights?|dumbbells?|resistance|functional strength|strength training)\b/i.test(text)) return 'strength';
+  if (/\b(?:sculpt|sculpting|tone|toning|booty|glute workout|leg workout|arm workout)\b/i.test(text)) return 'sculpt';
+
+  // 不再把“产后 / recovery / relief / core”等目标词强行猜成 Pilates 或 mobility。
+  return 'unclassified';
+}
 function inferExerciseType(video = {}) {
-  if (exerciseTypeLabels[video.exerciseType]) return video.exerciseType;
-  const text = `${video.title || ''} ${video.note || ''} ${video.description || ''}`.toLowerCase();
-  if (/meditat(?:e|ion)|mindfulness|breathwork|sleep meditation/i.test(text)) return 'meditation';
-  if (/pilates/i.test(text)) return 'pilates';
-  if (/yoga|vinyasa|yin yoga|hatha|sun salutation/i.test(text)) return 'yoga';
-  if (/stretch|stretching|flexibility/i.test(text)) return 'stretch';
-  if (/mobility|release|relief|posture|neck pain|back pain|shoulder pain|hip opener/i.test(text)) return 'mobility';
-  if (/cardio|walking workout|walk at home|low impact|hiit|aerobic/i.test(text)) return 'cardio';
-  if (/strength|weights?|dumbbells?|resistance|functional strength/i.test(text)) return 'strength';
-  if (/sculpt|tone|toning|booty|glute|legs?|arms?|full body workout/i.test(text)) return 'sculpt';
-  const legacy = { meditation:'meditation', cardio:'cardio', pilates:'pilates', glutes:'sculpt', mobility:'mobility', postpartum:'pilates' };
-  return legacy[video.focus] || 'mobility';
+  return classifyExerciseType(video);
 }
 function legacyFocusForExerciseType(type, title = '') {
   if (type === 'cardio') return 'cardio';
   if (type === 'meditation') return 'meditation';
   if (type === 'pilates') return 'pilates';
-  if (['stretch','mobility','yoga'].includes(type)) return 'mobility';
+  if (['stretch','mobility','yoga','unclassified'].includes(type)) return 'mobility';
   if (['sculpt','strength'].includes(type)) return /core|postpartum|diastasis|pelvic floor/i.test(title) ? 'postpartum' : 'glutes';
   return 'mobility';
 }
@@ -2949,7 +2979,7 @@ function loadState() {
         };
       });
       const personalIds = new Set(personalVideos.map(v => v.id));
-      merged.videos = [...personalVideos, ...sampleVideos.filter(v => !personalIds.has(v.id))].map(v => ({ ...v, exerciseType: inferExerciseType(v) }));
+      merged.videos = [...personalVideos, ...sampleVideos.filter(v => !personalIds.has(v.id))].map(v => ({ ...v, exerciseType: classifyExerciseType(v), exerciseTypeManual: !!v.exerciseTypeManual }));
       merged.pending = (parsed.pending || []).filter(v => !v.demo && !String(v.id || '').startsWith('pending-demo-'));
       merged.plan = parsedPlan;
       merged.libraryAudit = { ...defaults.libraryAudit, running:false, pending:0 };
@@ -4556,6 +4586,7 @@ function saveEditedVideo() {
     id, url, title, channel,
     duration:Number(document.getElementById('editVideoDuration').value || 15),
     exerciseType:document.getElementById('editVideoFocus').value,
+    exerciseTypeManual:true,
     focus:legacyFocusForExerciseType(document.getElementById('editVideoFocus').value, document.getElementById('editVideoTitle')?.value || video.title),
     position:document.getElementById('editVideoPosition').value,
     risk:document.getElementById('editVideoRisk').value,
@@ -4960,12 +4991,12 @@ function bindEvents() {
     if(state.videos.some(v=>v.id===id)){showToast('这个 YouTube 视频链接已经在视频库中');return;}
     if (isRetiredChannelName(channel)) { showToast('Jessica Valant 已从候选频道中移除'); return; }
     const reserveOnly=/heather robertson/i.test(channel);
-    state.videos.push({id,title,channel,url,duration:Number(document.getElementById('videoDuration').value||15),exerciseType:document.getElementById('videoFocus').value,focus:legacyFocusForExerciseType(document.getElementById('videoFocus').value,title),position:document.getElementById('videoPosition').value,risk:document.getElementById('videoRisk').value,level:reserveOnly?'progress':'stable',drFriendly:document.getElementById('videoRisk').value==='low',crunchHeavy:false,abTraining:document.getElementById('videoAbTraining').checked,pelvicInversion:document.getElementById('videoPelvicInversion').checked,menstrualEligible:document.getElementById('videoMenstrualEligible').checked&&!document.getElementById('videoAbTraining').checked&&!document.getElementById('videoPelvicInversion').checked,reserveOnly,approved:true,rejected:false,demo:false,thumbnail:youtubeThumbnail(id),publishedAt:new Date().toISOString(),addedAt:new Date().toISOString(),note:reserveOnly?'手动添加；高强度备用频道':'手动添加',verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
+    state.videos.push({id,title,channel,url,duration:Number(document.getElementById('videoDuration').value||15),exerciseType:document.getElementById('videoFocus').value,exerciseTypeManual:true,focus:legacyFocusForExerciseType(document.getElementById('videoFocus').value,title),position:document.getElementById('videoPosition').value,risk:document.getElementById('videoRisk').value,level:reserveOnly?'progress':'stable',drFriendly:document.getElementById('videoRisk').value==='low',crunchHeavy:false,abTraining:document.getElementById('videoAbTraining').checked,pelvicInversion:document.getElementById('videoPelvicInversion').checked,menstrualEligible:document.getElementById('videoMenstrualEligible').checked&&!document.getElementById('videoAbTraining').checked&&!document.getElementById('videoPelvicInversion').checked,reserveOnly,approved:true,rejected:false,demo:false,thumbnail:youtubeThumbnail(id),publishedAt:new Date().toISOString(),addedAt:new Date().toISOString(),note:reserveOnly?'手动添加；高强度备用频道':'手动添加',verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
     saveState();document.getElementById('videoDialog').close();document.getElementById('videoForm').reset();renderAll();showToast('已加入视频库；现有周计划保持不变');
   });
   document.getElementById('approveVideoBtn').addEventListener('click',e=>{
     e.preventDefault(); const id=document.getElementById('reviewVideoId').value; const pending=state.pending.find(v=>v.id===id); if(!pending)return;
-    state.videos.push({...pending,exerciseType:document.getElementById('reviewFocus').value,focus:legacyFocusForExerciseType(document.getElementById('reviewFocus').value,pending.title),position:document.getElementById('reviewPosition').value,risk:document.getElementById('reviewRisk').value,level:document.getElementById('reviewLevel').value,crunchHeavy:document.getElementById('reviewCrunch').checked,drFriendly:document.getElementById('reviewDR').checked,abTraining:document.getElementById('reviewAbTraining').checked,pelvicInversion:document.getElementById('reviewPelvicInversion').checked,menstrualEligible:document.getElementById('reviewMenstrualEligible').checked&&!document.getElementById('reviewAbTraining').checked&&!document.getElementById('reviewPelvicInversion').checked,reserveOnly:pending.sourceUsage==='reserve',addedAt:pending.addedAt||new Date().toISOString(),note:document.getElementById('reviewNote').value.trim(),approved:true,rejected:false,verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
+    state.videos.push({...pending,exerciseType:document.getElementById('reviewFocus').value,exerciseTypeManual:true,focus:legacyFocusForExerciseType(document.getElementById('reviewFocus').value,pending.title),position:document.getElementById('reviewPosition').value,risk:document.getElementById('reviewRisk').value,level:document.getElementById('reviewLevel').value,crunchHeavy:document.getElementById('reviewCrunch').checked,drFriendly:document.getElementById('reviewDR').checked,abTraining:document.getElementById('reviewAbTraining').checked,pelvicInversion:document.getElementById('reviewPelvicInversion').checked,menstrualEligible:document.getElementById('reviewMenstrualEligible').checked&&!document.getElementById('reviewAbTraining').checked&&!document.getElementById('reviewPelvicInversion').checked,reserveOnly:pending.sourceUsage==='reserve',addedAt:pending.addedAt||new Date().toISOString(),note:document.getElementById('reviewNote').value.trim(),approved:true,rejected:false,verificationStatus:'manual',verifiedAt:null,verifiedChannel:'',verificationNote:'',originalChannel:'',originalTitle:'',needsReview:false,autoPlanEligible:true});
     pending.approved=true;saveState();document.getElementById('reviewDialog').close();renderAll();showToast('已批准进入视频库；现有周计划保持不变');
   });
   document.getElementById('rejectVideoBtn').addEventListener('click',e=>{e.preventDefault();const id=document.getElementById('reviewVideoId').value;const pending=state.pending.find(v=>v.id===id);if(pending)pending.rejected=true;saveState();document.getElementById('reviewDialog').close();renderAll();showToast('已标记为不纳入');});

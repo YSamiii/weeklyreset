@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Weekly Reset 3.7</title>
+  <title>Weekly Reset 3.7.1</title>
 </head>
 <body>
   <div class="app-shell">
@@ -36,7 +36,7 @@
       </nav>
 
       <div class="sidebar-card">
-        <p class="eyebrow">Weekly Reset 3.7</p>
+        <p class="eyebrow">Weekly Reset 3.7.1</p>
         <strong>恢复状态优先</strong>
         <p>计划服务于身体状态，而不是反过来。</p>
       </div>
@@ -148,7 +148,7 @@
             <option value="yoga">瑜伽</option>
             <option value="stretch">拉伸</option>
             <option value="mobility">活动度 / 功能恢复</option>
-            <option value="meditation">冥想</option>
+            <option value="meditation">冥想</option><option value="unclassified">待确认</option>
           </select>
           <select id="libraryPositionFilter">
             <option value="all">全部体位</option>
@@ -466,7 +466,7 @@
         </label>
         <label id="videoCustomChannelField" class="field-label hidden">自定义频道<input id="videoChannelCustom" placeholder="输入频道名称" /></label>
         <label class="field-label">时长（分钟）<input id="videoDuration" type="number" min="1" value="15" /></label>
-        <label class="field-label">运动类型<select id="videoFocus"><option value="cardio">有氧</option><option value="sculpt">塑形</option><option value="strength">力量训练</option><option value="pilates">Pilates</option><option value="yoga">瑜伽</option><option value="stretch">拉伸</option><option value="mobility">活动度 / 功能恢复</option><option value="meditation">冥想</option></select></label>
+        <label class="field-label">运动类型<select id="videoFocus"><option value="cardio">有氧</option><option value="sculpt">塑形</option><option value="strength">力量训练</option><option value="pilates">Pilates</option><option value="yoga">瑜伽</option><option value="stretch">拉伸</option><option value="mobility">活动度 / 功能恢复</option><option value="meditation">冥想</option><option value="unclassified">待确认</option></select></label>
         <label class="field-label">体位<select id="videoPosition"><option value="mat">垫上为主</option><option value="mixed">混合</option><option value="standing">站立为主</option></select></label>
         <label class="field-label">腹压风险<select id="videoRisk"><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
       </div>
@@ -501,7 +501,7 @@
         <label class="field-label">标题<input id="editVideoTitle" required /></label>
         <label class="field-label">频道<input id="editVideoChannel" required /></label>
         <label class="field-label">时长（分钟）<input id="editVideoDuration" type="number" min="1" value="15" /></label>
-        <label class="field-label">运动类型<select id="editVideoFocus"><option value="cardio">有氧</option><option value="sculpt">塑形</option><option value="strength">力量训练</option><option value="pilates">Pilates</option><option value="yoga">瑜伽</option><option value="stretch">拉伸</option><option value="mobility">活动度 / 功能恢复</option><option value="meditation">冥想</option></select></label>
+        <label class="field-label">运动类型<select id="editVideoFocus"><option value="cardio">有氧</option><option value="sculpt">塑形</option><option value="strength">力量训练</option><option value="pilates">Pilates</option><option value="yoga">瑜伽</option><option value="stretch">拉伸</option><option value="mobility">活动度 / 功能恢复</option><option value="meditation">冥想</option><option value="unclassified">待确认</option></select></label>
         <label class="field-label">体位<select id="editVideoPosition"><option value="mat">垫上为主</option><option value="mixed">混合</option><option value="standing">站立为主</option></select></label>
         <label class="field-label">腹压风险<select id="editVideoRisk"><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
         <label class="field-label">建议阶段<select id="editVideoLevel"><option value="recovery">恢复期</option><option value="stable">稳定期</option><option value="progress">进阶期</option></select></label>
@@ -522,7 +522,7 @@
       <input id="reviewVideoId" type="hidden" />
       <div class="dialog-heading"><div><p class="eyebrow">人工审核</p><h3 id="reviewDialogTitle">审核视频</h3></div><button value="cancel" class="icon-btn">×</button></div>
       <div class="form-grid">
-        <label class="field-label">运动类型<select id="reviewFocus"><option value="cardio">有氧</option><option value="sculpt">塑形</option><option value="strength">力量训练</option><option value="pilates">Pilates</option><option value="yoga">瑜伽</option><option value="stretch">拉伸</option><option value="mobility">活动度 / 功能恢复</option><option value="meditation">冥想</option></select></label>
+        <label class="field-label">运动类型<select id="reviewFocus"><option value="cardio">有氧</option><option value="sculpt">塑形</option><option value="strength">力量训练</option><option value="pilates">Pilates</option><option value="yoga">瑜伽</option><option value="stretch">拉伸</option><option value="mobility">活动度 / 功能恢复</option><option value="meditation">冥想</option><option value="unclassified">待确认</option></select></label>
         <label class="field-label">体位<select id="reviewPosition"><option value="mat">垫上为主</option><option value="mixed">混合</option><option value="standing">站立为主</option></select></label>
         <label class="field-label">腹压风险<select id="reviewRisk"><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
         <label class="field-label">建议阶段<select id="reviewLevel"><option value="recovery">恢复期</option><option value="stable">稳定期</option><option value="progress">进阶期</option></select></label>
