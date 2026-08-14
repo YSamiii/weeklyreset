@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Weekly Reset 3.6.1</title>
+  <title>Weekly Reset 3.7</title>
 </head>
 <body>
   <div class="app-shell">
@@ -21,7 +21,7 @@
       <div class="brand">
         <div class="brand-mark">WR</div>
         <div>
-          <h1>Weekly Reset <span class="brand-version">3.6.1</span></h1>
+          <h1>Weekly Reset <span class="brand-version">3.7</span></h1>
           <p>恢复优先 · 智能排课</p>
         </div>
       </div>
@@ -36,7 +36,7 @@
       </nav>
 
       <div class="sidebar-card">
-        <p class="eyebrow">Weekly Reset 3.6.1</p>
+        <p class="eyebrow">Weekly Reset 3.7</p>
         <strong>恢复状态优先</strong>
         <p>计划服务于身体状态，而不是反过来。</p>
       </div>
@@ -87,7 +87,7 @@
             <h3>计划与实际完成</h3>
           </div>
           <div class="button-row">
-            <button id="assessmentBtn" class="secondary-btn">填写周状态</button>
+            <button id="assessmentBtn" class="secondary-btn">周计划基础设置</button>
             <button id="generateBtn" class="primary-btn">重新生成计划</button>
           </div>
         </div>
@@ -301,8 +301,8 @@
 
   <dialog id="assessmentDialog" class="app-dialog">
     <form method="dialog" id="assessmentForm">
-      <div class="dialog-heading"><div><p class="eyebrow">周计划基础设置</p><h3>身体状态与可用时间</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
-      <p class="helper" style="margin-top:-4px">不再预测下周精力。周计划默认按正常精力 3/5 生成；实际精力每天在首页 Check-in。</p>
+      <div class="dialog-heading"><div><p class="eyebrow">周计划基础设置</p><h3>下周可预知的信息</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <p class="helper" style="margin-top:-4px">周计划只填写可预知、相对稳定的信息。精力和当天身体状况都改为每天在首页一次 Check-in。</p>
       <div class="form-grid">
         <label class="field-label">近期带娃与步行负荷 <span id="loadValue">3</span>/5
           <input id="loadRange" type="range" min="1" max="5" value="3" />
@@ -315,7 +315,7 @@
         </label>
       </div>
       <fieldset>
-        <legend>目前不适部位（可多选）</legend>
+        <legend>持续性／已知不适（可多选，会影响整周）</legend>
         <div class="chip-checks">
           <label><input type="checkbox" name="pain" value="foot" />足弓/前脚掌</label>
           <label><input type="checkbox" name="pain" value="knee" />膝盖</label>
@@ -326,7 +326,7 @@
         </div>
       </fieldset>
       <label class="field-label">补充说明
-        <textarea id="assessmentNote" rows="3" placeholder="例如：本周抱娃很多，右肩前侧酸。"></textarea>
+        <textarea id="assessmentNote" rows="3" placeholder="例如：已知本周会持续的旧伤或医生建议限制。"></textarea>
       </label>
       <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveAssessmentBtn" value="default" class="primary-btn">保存并从今天更新</button></div>
     </form>
@@ -334,15 +334,38 @@
 
   <dialog id="dailyEnergyDialog" class="app-dialog">
     <form method="dialog" id="dailyEnergyForm">
-      <div class="dialog-heading"><div><p class="eyebrow">每日 Check-in · <span id="dailyEnergyDateLabel"></span></p><h3>今天精力怎么样？</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
-      <p class="helper">精力只影响今天。1–2/5 会建议换轻一点；3/5 按原计划；4–5/5 可选择挑战一点。不会因为今天很累就改掉明天的安排。</p>
-      <div class="daily-energy-options">
-        <label><input type="radio" name="dailyEnergy" value="1"><span><strong>1</strong><small>很累</small></span></label>
-        <label><input type="radio" name="dailyEnergy" value="2"><span><strong>2</strong><small>偏累</small></span></label>
-        <label><input type="radio" name="dailyEnergy" value="3" checked><span><strong>3</strong><small>正常</small></span></label>
-        <label><input type="radio" name="dailyEnergy" value="4"><span><strong>4</strong><small>不错</small></span></label>
-        <label><input type="radio" name="dailyEnergy" value="5"><span><strong>5</strong><small>很好</small></span></label>
+      <div class="dialog-heading"><div><p class="eyebrow">今日状态 Check-in · <span id="dailyEnergyDateLabel"></span></p><h3>今天身体和精力怎么样？</h3></div><button value="cancel" class="icon-btn" aria-label="关闭">×</button></div>
+      <p class="helper">每天只填一次。短暂疲劳或酸痛只影响今天；只有你标记为“持续性不适”或今天开始生理期时，才会影响今天之后的计划。</p>
+      <fieldset>
+        <legend>今日精力</legend>
+        <div class="daily-energy-options">
+          <label><input type="radio" name="dailyEnergy" value="1"><span><strong>1</strong><small>很累</small></span></label>
+          <label><input type="radio" name="dailyEnergy" value="2"><span><strong>2</strong><small>偏累</small></span></label>
+          <label><input type="radio" name="dailyEnergy" value="3" checked><span><strong>3</strong><small>正常</small></span></label>
+          <label><input type="radio" name="dailyEnergy" value="4"><span><strong>4</strong><small>不错</small></span></label>
+          <label><input type="radio" name="dailyEnergy" value="5"><span><strong>5</strong><small>很好</small></span></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>今天有没有不适？</legend>
+        <div class="chip-checks">
+          <label><input type="checkbox" name="dailyPain" value="foot" />足弓/前脚掌</label>
+          <label><input type="checkbox" name="dailyPain" value="knee" />膝盖</label>
+          <label><input type="checkbox" name="dailyPain" value="back" />下背</label>
+          <label><input type="checkbox" name="dailyPain" value="shoulder" />肩颈</label>
+          <label><input type="checkbox" name="dailyPain" value="hip" />髋屈肌</label>
+          <label><input type="checkbox" name="dailyPain" value="core" />腹部压力感</label>
+        </div>
+      </fieldset>
+      <div class="form-grid">
+        <label class="field-label">今日带娃/活动负荷 <span id="dailyLoadValue">3</span>/5<input id="dailyLoadRange" type="range" min="1" max="5" value="3" /></label>
+        <label class="field-label">今日恢复感受<select id="dailyRecoveryState"><option value="normal">正常</option><option value="stiff">有点酸紧</option><option value="tired">明显疲劳</option><option value="recovery">今天想以恢复为主</option></select></label>
       </div>
+      <label class="switch-row"><span>昨晚睡眠明显不足<small>只影响今天</small></span><input id="dailyPoorSleep" type="checkbox" /></label>
+      <label class="switch-row"><span>今天带娃负荷特别高<small>只影响今天</small></span><input id="dailyHeavyCare" type="checkbox" /></label>
+      <label class="switch-row"><span>这些不适预计会持续几天<small>开启后会从今天起影响后续计划</small></span><input id="dailyPersistentPain" type="checkbox" /></label>
+      <label class="switch-row"><span>今天开始生理期<small>开启后从今天起按生理期安全规则重排</small></span><input id="dailyPeriodStart" type="checkbox" /></label>
+      <label class="field-label">今天补充说明<textarea id="dailyStatusNote" rows="2" placeholder="可选，例如：昨晚睡得很差，右肩抱娃后酸。"></textarea></label>
       <div class="dialog-actions"><button value="cancel" class="secondary-btn">取消</button><button id="saveDailyEnergyBtn" value="default" class="primary-btn">保存今日状态</button></div>
     </form>
   </dialog>

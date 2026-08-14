@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'weeklyResetApp_v1';
-const APP_DATA_VERSION = 40;
+const APP_DATA_VERSION = 41;
 const DEFAULT_YOUTUBE_BACKEND = 'https://weekly-reset-youtube.vercel.app/api';
 const RETIRED_SEED_VIDEO_IDS = new Set(["yrYUfRt7k60", "FlPWNSn0YHQ", "UxstRqRaIPs", "bkGSwCg0_O0", "3pgB6eqk_bI", "mzEbSFBgQGk", "A_sdIeOgPX0", "uqKLz3HRLJg", "BIdaEuLkAnM", "EYngvIvMvSo", "alt9hfrnsA4", "DqPMk-GhT6s", "jE-dDQdwRwc", "FFPDeaG_8Dg", "AE-GTSE9MBM", "sW4EUzrcnTs", "FrCPFm0nZ6U", "QQg6QQrPdJQ", "BzG5Af5HTfQ", "I5S7L4k0e9U", "-fkySqtdlxo", "JHWv-vgn_QY", "RIi72ZNqRCQ", "D3TC-tz3TeQ", "4pfCBO3BGvg", "_Rg7nToY1dg", "WoTKGyCM7Jk", "e5Ou7dskEGM", "BegW_l4IJFQ", "M7qogNry8t4", "-9Dfa3_CCvg", "k_ShNZ1ksYs", "H5-LhJ1I-hQ", "DwhVA8y7_l0", "V7NLxB373Ro", "BwStwvbizIM", "imWc_27U9w8", "60T1eRQzlGw", "6RIbWni5JVk", "2eA2Koq6pTI", "5P6PlsGfcQU", "JdSHPSSMVq4", "Agu4EnLxAGM", "aZYDtjc5koQ", "UMGkQ9FmbGg", "32DsAJUru8E", "47EwctVwir4", "zYInbggfukg"]);
 const TZ = 'America/Toronto';
@@ -2740,6 +2740,7 @@ function defaultState() {
     planMetaByWeek: {},
     feedback: [],
     dailyEnergyByDate: {},
+    dailyBodyByDate: {},
     weekPreferences: {
       weekStart: startOfPlanWeek(),
       excludedChannels: []
@@ -2879,6 +2880,7 @@ function loadState() {
       plansByWeek: { ...(parsed.plansByWeek || {}) },
       planMetaByWeek: { ...(parsed.planMetaByWeek || {}) },
       dailyEnergyByDate: { ...(parsed.dailyEnergyByDate || {}) },
+      dailyBodyByDate: { ...(parsed.dailyBodyByDate || {}) },
       weekPreferences: { ...defaults.weekPreferences, ...(parsed.weekPreferences || {}) },
       weekPreferencesByStart: { ...(parsed.weekPreferencesByStart || {}) },
       libraryPreferences: { ...defaults.libraryPreferences, ...(parsed.libraryPreferences || {}) },
@@ -3121,20 +3123,59 @@ function dailyEnergyForDate(date = torontoDate()) {
   const value = Number(state.dailyEnergyByDate?.[date]);
   return value >= 1 && value <= 5 ? value : null;
 }
+function dailyBodyForDate(date = torontoDate()) {
+  const raw = state.dailyBodyByDate?.[date];
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    pains: Array.isArray(raw.pains) ? raw.pains : [],
+    load: Math.min(5, Math.max(1, Number(raw.load || 3))),
+    recoveryState: ['normal','stiff','tired','recovery'].includes(raw.recoveryState) ? raw.recoveryState : 'normal',
+    poorSleep: !!raw.poorSleep,
+    heavyCare: !!raw.heavyCare,
+    persistent: !!raw.persistent,
+    note: String(raw.note || '')
+  };
+}
 function effectiveAssessmentForDate(date = torontoDate()) {
   const dailyEnergy = dailyEnergyForDate(date);
-  const base = { ...state.assessment, energy: dailyEnergy ?? 3 };
+  const dailyBody = dailyBodyForDate(date);
+  const weeklyPains = Array.isArray(state.assessment.pains) ? state.assessment.pains : [];
+  const dailyPains = dailyBody?.pains || [];
+  const base = {
+    ...state.assessment,
+    energy: dailyEnergy ?? 3,
+    pains: [...new Set([...weeklyPains, ...dailyPains])],
+    load: Math.max(Number(state.assessment.load || 3), Number(dailyBody?.load || 0))
+  };
+  const dailyNeedsRecovery = !!dailyBody && (
+    dailyBody.recoveryState === 'recovery' || dailyBody.recoveryState === 'tired' ||
+    dailyBody.poorSleep || dailyBody.heavyCare || dailyPains.length >= 2 || Number(dailyBody.load || 3) >= 4
+  );
   if (base.desiredMode && base.desiredMode !== 'auto') {
-    // 每日精力可以把手动周模式向安全侧降级，但不会绕过周级安全设置。
-    if (dailyEnergy != null && dailyEnergy <= 2) base.mode = 'recovery';
+    // 每日状态只允许向安全侧降级，不绕过周级安全设置。
+    if ((dailyEnergy != null && dailyEnergy <= 2) || dailyNeedsRecovery) base.mode = 'recovery';
     else base.mode = base.desiredMode;
-  } else if (dailyEnergy != null && dailyEnergy <= 2) base.mode = 'recovery';
-  else if (dailyEnergy != null && dailyEnergy >= 4 && (base.pains || []).length === 0 && Number(base.load || 3) <= 3) base.mode = 'progress';
+  } else if ((dailyEnergy != null && dailyEnergy <= 2) || dailyNeedsRecovery) base.mode = 'recovery';
+  else if (dailyEnergy != null && dailyEnergy >= 4 && base.pains.length === 0 && Number(base.load || 3) <= 3 && dailyBody?.recoveryState !== 'stiff') base.mode = 'progress';
   else base.mode = determineMode({ ...base, energy:3 });
   return base;
 }
 function dailyEnergyLabel(value) {
   return ({1:'很累',2:'偏累',3:'正常',4:'不错',5:'很好'})[Number(value)] || '未填写';
+}
+function dailyBodySummary(date = torontoDate()) {
+  const body = dailyBodyForDate(date);
+  if (!body) return '身体状况未填写';
+  const parts = [];
+  if (body.pains.length) parts.push(body.pains.map(painName).join('、'));
+  else parts.push('无明显不适');
+  if (body.poorSleep) parts.push('睡眠不足');
+  if (body.heavyCare) parts.push('带娃负荷高');
+  if (body.recoveryState === 'stiff') parts.push('有点酸紧');
+  if (body.recoveryState === 'tired') parts.push('明显疲劳');
+  if (body.recoveryState === 'recovery') parts.push('恢复优先');
+  if (body.persistent && body.pains.length) parts.push('持续性');
+  return parts.join(' · ');
 }
 
 
@@ -3819,13 +3860,15 @@ function renderHome() {
       <div class="hero-visual">${video.thumbnail ? `<img src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}的视频封面">` : `<div class="hero-visual-placeholder">${escapeHtml(video.channel)}</div>`}</div>
     </div>` : `<div class="hero-layout hero-rest-layout"><div class="hero-content"><p class="eyebrow hero-eyebrow">今日恢复</p><h3>休息 / 自主恢复</h3><p class="hero-rationale">${escapeHtml(planItem?.rationale || '当前可用候选视频不足，已避免周内及本周／下周重复安排。')}</p><div class="hero-actions"><button class="secondary-btn community-btn" onclick="openCommunityClass('${today}')">${communityRecord ? '修改现场课' : 'Community Centre 课程打卡'}</button></div></div><div class="hero-rest-mark">REST</div></div>`;
 
-  const pains = state.assessment.pains || [];
   const dailyEnergy = dailyEnergyForDate(today);
-  const energyHint = dailyEnergy == null ? '今天还没有 Check-in' : dailyEnergy <= 2 ? '建议换轻一点；只影响今天' : dailyEnergy === 3 ? '按原计划最合适' : '状态不错，可以选择挑战一点';
-  const energyAction = dailyEnergy == null ? '' : dailyEnergy <= 2 ? `<button onclick="applyDailyEnergySuggestion('${today}')">应用轻量建议</button>` : dailyEnergy >= 4 ? `<button onclick="applyDailyEnergySuggestion('${today}')">应用挑战建议</button>` : '';
+  const dailyBody = dailyBodyForDate(today);
+  const effectiveToday = effectiveAssessmentForDate(today);
+  const hasDailyRisk = !!dailyBody && (dailyBody.pains.length || dailyBody.poorSleep || dailyBody.heavyCare || dailyBody.recoveryState !== 'normal' || Number(dailyBody.load || 3) >= 4);
+  const energyHint = dailyEnergy == null || !dailyBody ? '今天还没有完整 Check-in' : (dailyEnergy <= 2 || effectiveToday.mode === 'recovery' || hasDailyRisk) ? '今天建议轻一点' : dailyEnergy === 3 ? '按原计划最合适' : '状态不错，可以选择挑战一点';
+  const energyAction = dailyEnergy == null || !dailyBody ? '' : (dailyEnergy <= 2 || effectiveToday.mode === 'recovery' || hasDailyRisk) ? `<button onclick="applyDailyEnergySuggestion('${today}')">应用轻量建议</button>` : dailyEnergy >= 4 ? `<button onclick="applyDailyEnergySuggestion('${today}')">应用挑战建议</button>` : '';
   document.getElementById('quickCheck').innerHTML = `
-    <div class="check-option"><div><strong>今日精力</strong><div class="helper" style="margin:4px 0 0">${dailyEnergy == null ? '未填写' : `${dailyEnergy}/5 · ${dailyEnergyLabel(dailyEnergy)}`} · ${energyHint}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${energyAction}<button onclick="openDailyEnergyDialog()">${dailyEnergy == null ? 'Check-in' : '修改'}</button></div></div>
-    <div class="check-option"><div><strong>当前身体状态</strong><div class="helper" style="margin:4px 0 0">${pains.length ? pains.map(painName).join('、') : '未记录不适'} · 近期负荷 ${state.assessment.load}/5</div></div><button onclick="document.getElementById('assessmentDialog').showModal()">更新</button></div>
+    <div class="check-option"><div><strong>今日状态 Check-in</strong><div class="helper" style="margin:4px 0 0">${dailyEnergy == null ? '精力未填写' : `精力 ${dailyEnergy}/5 · ${dailyEnergyLabel(dailyEnergy)}`} · ${dailyBodySummary(today)} · ${energyHint}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${energyAction}<button onclick="openDailyEnergyDialog()">${dailyEnergy == null || !dailyBody ? 'Check-in' : '修改'}</button></div></div>
+    <div class="check-option"><div><strong>整周持续性限制</strong><div class="helper" style="margin:4px 0 0">${(state.assessment.pains || []).length ? state.assessment.pains.map(painName).join('、') : '无持续性不适'} · 基础负荷 ${state.assessment.load}/5</div></div><button onclick="document.getElementById('assessmentDialog').showModal()">周设置</button></div>
     <div class="check-option"><div><strong>生理期安排</strong><div class="helper" style="margin:4px 0 0">${state.menstrual.enabled ? menstrualStatusText() : '未启用；可按日期自动降低强度'}</div></div><button onclick="openMenstrualDialog()">${state.menstrual.enabled ? '修改' : '设置'}</button></div>
     <div class="check-option"><div><strong>今日手动调整</strong><div class="helper" style="margin:4px 0 0">只改今天，不改变后面几天</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button onclick="swapPlan('${planItem?.date}')">换轻一点</button>${dailyEnergy != null && dailyEnergy >= 4 ? `<button onclick="challengePlan('${planItem?.date}')">挑战一点</button>` : ''}</div></div>
     <div class="check-option community-check-option"><div><strong>Community Centre 现场课</strong><div class="helper" style="margin:4px 0 0">普拉提或瑜伽课可直接覆盖今日视频</div></div><button onclick="openCommunityClass('${today}')">${communityRecord ? '修改' : '打卡'}</button></div>`;
@@ -4166,7 +4209,17 @@ window.openChannelSearch = function(index) {
 window.openDailyEnergyDialog = function() {
   const today = torontoDate();
   const current = dailyEnergyForDate(today) ?? 3;
+  const body = dailyBodyForDate(today) || { pains:[], load:3, recoveryState:'normal', poorSleep:false, heavyCare:false, persistent:false, note:'' };
   document.querySelectorAll('input[name="dailyEnergy"]').forEach(input => input.checked = Number(input.value) === current);
+  document.querySelectorAll('input[name="dailyPain"]').forEach(input => input.checked = body.pains.includes(input.value));
+  document.getElementById('dailyLoadRange').value = body.load;
+  document.getElementById('dailyLoadValue').textContent = body.load;
+  document.getElementById('dailyRecoveryState').value = body.recoveryState;
+  document.getElementById('dailyPoorSleep').checked = body.poorSleep;
+  document.getElementById('dailyHeavyCare').checked = body.heavyCare;
+  document.getElementById('dailyPersistentPain').checked = body.persistent;
+  document.getElementById('dailyPeriodStart').checked = false;
+  document.getElementById('dailyStatusNote').value = body.note;
   const dateLabel = document.getElementById('dailyEnergyDateLabel');
   if (dateLabel) dateLabel.textContent = today;
   document.getElementById('dailyEnergyDialog').showModal();
@@ -4174,21 +4227,50 @@ window.openDailyEnergyDialog = function() {
 
 window.applyDailyEnergySuggestion = function(date = torontoDate()) {
   const energy = dailyEnergyForDate(date);
-  if (energy == null) { showToast('请先完成今日精力 Check-in'); return; }
-  if (energy <= 2) return window.swapPlan(date);
+  const body = dailyBodyForDate(date);
+  if (energy == null || !body) { showToast('请先完成今日状态 Check-in'); return; }
+  const effective = effectiveAssessmentForDate(date);
+  const hasDailyRisk = body.pains.length || body.poorSleep || body.heavyCare || body.recoveryState !== 'normal' || Number(body.load || 3) >= 4;
+  if (energy <= 2 || effective.mode === 'recovery' || hasDailyRisk) return window.swapPlan(date);
   if (energy >= 4) return window.challengePlan(date);
-  showToast('今日精力 3/5，建议按原计划训练');
+  showToast('今日状态适合按原计划训练');
 };
 
-function saveDailyEnergy(value, date = torontoDate()) {
+function saveDailyStatus(value, body, date = torontoDate(), startsPeriod = false) {
   const energy = Math.min(5, Math.max(1, Number(value || 3)));
   if (!state.dailyEnergyByDate || typeof state.dailyEnergyByDate !== 'object') state.dailyEnergyByDate = {};
+  if (!state.dailyBodyByDate || typeof state.dailyBodyByDate !== 'object') state.dailyBodyByDate = {};
   state.dailyEnergyByDate[date] = energy;
+  state.dailyBodyByDate[date] = {
+    pains: Array.isArray(body.pains) ? body.pains : [],
+    load: Math.min(5, Math.max(1, Number(body.load || 3))),
+    recoveryState: body.recoveryState || 'normal',
+    poorSleep: !!body.poorSleep,
+    heavyCare: !!body.heavyCare,
+    persistent: !!body.persistent,
+    note: String(body.note || ''),
+    updatedAt: new Date().toISOString()
+  };
+  let futureChanged = false;
+  if (body.persistent && body.pains?.length) {
+    state.assessment.pains = [...new Set([...(state.assessment.pains || []), ...body.pains])];
+    state.assessment.mode = determineMode(state.assessment);
+    state.assessment.updatedAt = new Date().toISOString();
+    futureChanged = true;
+  }
+  if (startsPeriod) {
+    state.menstrual = { ...state.menstrual, enabled:true, startDate:date, duration:Number(state.menstrual?.duration || 5), updatedAt:new Date().toISOString() };
+    futureChanged = true;
+  }
   saveState();
-  renderHome();
-  if (energy <= 2) showToast(`今日精力 ${energy}/5：建议换轻一点；不会改动明天及之后的计划`);
-  else if (energy >= 4) showToast(`今日精力 ${energy}/5：状态不错，可选择“挑战一点”；不会改动后续计划`);
-  else showToast('今日精力 3/5：建议按原计划训练');
+  if (futureChanged) regenerateCurrentAndNext();
+  else renderAll();
+  const effective = effectiveAssessmentForDate(date);
+  if (startsPeriod) showToast('已记录今天开始生理期：从今天起按生理期规则重排，过去日期不变');
+  else if (body.persistent && body.pains?.length) showToast('已记录持续性不适：从今天起影响后续计划，过去日期不变');
+  else if (energy <= 2 || effective.mode === 'recovery' || body.pains?.length || body.poorSleep || body.heavyCare) showToast('今日状态已保存：建议今天换轻一点；不会改动明天及之后的计划');
+  else if (energy >= 4) showToast('今日状态已保存：状态不错，可选择“挑战一点”');
+  else showToast('今日状态已保存：建议按原计划训练');
 }
 
 function applyWeeklyChannelExclusions() {
@@ -4253,7 +4335,10 @@ window.challengePlan = function(date) {
   const item = weekPlan.find(p=>p.date===date); if(!item) return;
   const current = getVideo(item.videoId);
   const effectiveAssessment = effectiveAssessmentForDate(date);
+  const dailyBody = dailyBodyForDate(date);
+  const dailyRisk = !!dailyBody && (dailyBody.pains.length || dailyBody.poorSleep || dailyBody.heavyCare || dailyBody.recoveryState !== 'normal' || Number(dailyBody.load || 3) >= 4);
   if (Number(effectiveAssessment.energy || 3) < 4) { showToast('今日精力未达到 4/5；先按原计划或选择“换轻一点”'); return; }
+  if (effectiveAssessment.mode === 'recovery' || dailyRisk) { showToast('今天的身体状态更适合恢复/轻量训练，不开放“挑战一点”'); return; }
   const currentEffort = current ? personalVideoEffort(current) : targetEffortForAssessment(effectiveAssessment);
   const usedOnOtherDays = new Set(weekPlan.filter(planItem => planItem.date !== date && planItem.videoId).map(planItem => planItem.videoId));
   const usedInPairedWeek = crossWeekBlockedVideoIds(weekStart);
@@ -4754,11 +4839,21 @@ function bindEvents() {
   document.getElementById('menstrualEnabled').addEventListener('change',toggleMenstrualFormFields);
   document.getElementById('effortRange').addEventListener('input',e=>document.getElementById('effortValue').textContent=e.target.value);
   document.getElementById('communityEffort').addEventListener('input',e=>document.getElementById('communityEffortValue').textContent=e.target.value);
+  document.getElementById('dailyLoadRange').addEventListener('input',e=>document.getElementById('dailyLoadValue').textContent=e.target.value);
   document.getElementById('saveDailyEnergyBtn').addEventListener('click',e=>{
     e.preventDefault();
     const selected = document.querySelector('input[name="dailyEnergy"]:checked');
     if (!selected) { showToast('请选择今天的精力状态'); return; }
-    saveDailyEnergy(Number(selected.value), torontoDate());
+    const body = {
+      pains:[...document.querySelectorAll('input[name="dailyPain"]:checked')].map(x=>x.value),
+      load:Number(document.getElementById('dailyLoadRange').value || 3),
+      recoveryState:document.getElementById('dailyRecoveryState').value,
+      poorSleep:document.getElementById('dailyPoorSleep').checked,
+      heavyCare:document.getElementById('dailyHeavyCare').checked,
+      persistent:document.getElementById('dailyPersistentPain').checked,
+      note:document.getElementById('dailyStatusNote').value.trim()
+    };
+    saveDailyStatus(Number(selected.value), body, torontoDate(), document.getElementById('dailyPeriodStart').checked);
     document.getElementById('dailyEnergyDialog').close();
   });
   document.getElementById('saveMenstrualBtn').addEventListener('click',e=>{
@@ -4787,7 +4882,7 @@ function bindEvents() {
     e.preventDefault();
     state.assessment={energy:3,load:Number(document.getElementById('loadRange').value),pains:[...document.querySelectorAll('input[name="pain"]:checked')].map(x=>x.value),timeAvailable:Number(document.getElementById('timeAvailable').value),desiredMode:document.getElementById('desiredMode').value,note:document.getElementById('assessmentNote').value.trim(),updatedAt:new Date().toISOString()};
     state.assessment.mode=determineMode(state.assessment); saveState(); document.getElementById('assessmentDialog').close(); regenerateCurrentAndNext();
-    showToast('身体状态已更新：本周从今天起重排，过去日期保持不变');
+    showToast('周计划基础设置已更新：持续性限制会从今天起影响后续计划，过去日期保持不变');
   });
   document.getElementById('saveCommunityBtn').addEventListener('click',e=>{
     e.preventDefault();
