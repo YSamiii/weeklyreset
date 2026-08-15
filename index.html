@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Weekly Reset 3.7.1</title>
+  <title>Weekly Reset 3.7.2</title>
 </head>
 <body>
   <div class="app-shell">
@@ -36,7 +36,7 @@
       </nav>
 
       <div class="sidebar-card">
-        <p class="eyebrow">Weekly Reset 3.7.1</p>
+        <p class="eyebrow">Weekly Reset 3.7.2</p>
         <strong>恢复状态优先</strong>
         <p>计划服务于身体状态，而不是反过来。</p>
       </div>
@@ -440,6 +440,11 @@
       </label>
       <label class="field-label">实际分钟数<input id="actualMinutes" type="number" min="0" max="180" value="15" /></label>
       <label class="field-label">体感强度 <span id="effortValue">3</span>/5<input id="effortRange" type="range" min="1" max="5" value="3" /></label>
+      <fieldset class="feedback-preference-field"><legend>这个视频你喜欢吗？</legend><div class="chip-checks feedback-preference-options">
+        <label><input type="radio" name="feedbackPreference" value="favorite" />♥ 喜欢</label>
+        <label><input type="radio" name="feedbackPreference" value="neutral" checked />一般 / 暂不评价</label>
+        <label><input type="radio" name="feedbackPreference" value="dislike" />不喜欢</label>
+      </div><small class="helper">会同步到视频库，并影响之后的自动排课：喜欢会适度加权；不喜欢将不再自动安排。</small></fieldset>
       <fieldset><legend>训练后不适</legend><div class="chip-checks">
         <label><input type="checkbox" name="feedbackPain" value="none" />无</label>
         <label><input type="checkbox" name="feedbackPain" value="foot" />足部</label>

@@ -4410,6 +4410,8 @@ function hydrateFeedbackFields({ source, date, video, existing, title, context }
   document.getElementById('actualMinutes').value = existing?.minutes ?? video?.duration ?? 15;
   document.getElementById('effortRange').value = existing?.effort || 3;
   document.getElementById('effortValue').textContent = existing?.effort || 3;
+  const feedbackPreference = existing?.preference || videoPreference(video);
+  document.querySelectorAll('input[name="feedbackPreference"]').forEach(radio => { radio.checked = radio.value === feedbackPreference; });
   document.querySelectorAll('input[name="feedbackPain"]').forEach(cb => cb.checked = existing?.pains?.includes(cb.value) || false);
   document.getElementById('feedbackNote').value = existing?.note || '';
 }
@@ -4964,7 +4966,10 @@ function bindEvents() {
     const video = getVideo(videoId);
     if (!date || !videoId || !video) { showToast('无法保存：缺少训练日期或视频'); return; }
     const previous = state.feedback.find(record => record.recordId === recordId);
-    const record={recordId,source,date,videoId:video.id,videoTitle:video.title,videoChannel:video.channel,status:document.getElementById('completionStatus').value,minutes:Number(document.getElementById('actualMinutes').value||0),effort:Number(document.getElementById('effortRange').value),pains:[...document.querySelectorAll('input[name="feedbackPain"]:checked')].map(x=>x.value),note:document.getElementById('feedbackNote').value.trim(),createdAt:previous?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+    const selectedPreference = document.querySelector('input[name="feedbackPreference"]:checked')?.value || 'neutral';
+    const record={recordId,source,date,videoId:video.id,videoTitle:video.title,videoChannel:video.channel,status:document.getElementById('completionStatus').value,minutes:Number(document.getElementById('actualMinutes').value||0),effort:Number(document.getElementById('effortRange').value),preference:selectedPreference,pains:[...document.querySelectorAll('input[name="feedbackPain"]:checked')].map(x=>x.value),note:document.getElementById('feedbackNote').value.trim(),createdAt:previous?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+    // 3.7.2：打卡时的视频喜好直接同步到视频库，未来排课立即使用。
+    video.preference = selectedPreference;
     if (source === 'plan') {
       state.feedback = state.feedback.filter(f => !(f.recordId === recordId || (f.date === date && isPlanFeedback(f))));
     } else {
@@ -4975,7 +4980,7 @@ function bindEvents() {
     const nextWeekStart = addDays(startOfPlanWeek(), 7);
     delete state.plansByWeek[nextWeekStart];
     if (state.planMetaByWeek) delete state.planMetaByWeek[nextWeekStart];
-    saveState();document.getElementById('feedbackDialog').close();renderAll();showToast(source==='library'?'已记录；体感会用于后续排课':'训练记录已保存；体感会用于后续排课');
+    saveState();document.getElementById('feedbackDialog').close();renderAll();showToast(selectedPreference==='dislike'?'训练记录已保存；已标记不喜欢，未来自动排课会避开这条视频':selectedPreference==='favorite'?'训练记录已保存；已标记喜欢，未来排课会适度提高优先级':(source==='library'?'已记录；体感会用于后续排课':'训练记录已保存；体感会用于后续排课'));
   });
   document.getElementById('saveEditedVideoBtn').addEventListener('click',e=>{e.preventDefault();saveEditedVideo();});
   document.getElementById('editVideoSearchQuery').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchYouTubeForEdit();}});

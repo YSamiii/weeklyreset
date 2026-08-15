@@ -1,4 +1,4 @@
-const CACHE = 'weekly-reset-3.7.1-cache-v1';
+const CACHE = 'weekly-reset-3.7.2-cache-v1';
 const ASSETS = ['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icons/apple-touch-icon-180.png','./icons/icon-192.png','./icons/icon-512.png'];
 
 self.addEventListener('install', event => {
