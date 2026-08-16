@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Weekly Reset 3.7.2</title>
+  <title>Weekly Reset 3.8</title>
 </head>
 <body>
   <div class="app-shell">
@@ -21,7 +21,7 @@
       <div class="brand">
         <div class="brand-mark">WR</div>
         <div>
-          <h1>Weekly Reset <span class="brand-version">3.7</span></h1>
+          <h1>Weekly Reset <span class="brand-version">3.8</span></h1>
           <p>恢复优先 · 智能排课</p>
         </div>
       </div>
@@ -36,7 +36,7 @@
       </nav>
 
       <div class="sidebar-card">
-        <p class="eyebrow">Weekly Reset 3.7.2</p>
+        <p class="eyebrow">Weekly Reset 3.8</p>
         <strong>恢复状态优先</strong>
         <p>计划服务于身体状态，而不是反过来。</p>
       </div>
@@ -213,6 +213,28 @@
 
       <section id="view-settings" class="view">
         <div class="settings-grid">
+          <section class="panel display-settings-panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">显示与语言</p><h3>语言与外观</h3></div>
+            </div>
+            <div class="form-grid">
+              <label class="field-label">语言
+                <select id="languageMode">
+                  <option value="system">跟随系统</option>
+                  <option value="zh">中文</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+              <label class="field-label">外观
+                <select id="appearanceMode">
+                  <option value="system">跟随系统</option>
+                  <option value="light">浅色</option>
+                  <option value="dark">深色</option>
+                </select>
+              </label>
+            </div>
+            <p class="helper display-settings-helper">“跟随系统”会根据设备语言以及浅色/深色外观自动切换；系统设置变化时 App 也会同步更新。</p>
+          </section>
           <section class="panel">
             <div class="panel-heading">
               <div><p class="eyebrow">无 API 模式</p><h3>频道与视频快捷入口</h3></div>

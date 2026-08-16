@@ -2804,7 +2804,9 @@ function defaultState() {
       autoDowngrade: true,
       miziGap: 14,
       lastSync: null,
-      shareOnboardingSeen: false
+      shareOnboardingSeen: false,
+      languageMode: 'system',
+      appearanceMode: 'system'
     }
   };
 }
@@ -3084,7 +3086,7 @@ function torontoDate(date = new Date()) {
 function parseLocalDate(iso) { return new Date(`${iso}T12:00:00`); }
 function addDays(iso, days) { const d = parseLocalDate(iso); d.setDate(d.getDate()+days); return torontoDate(d); }
 function formatDate(iso, options = {}) {
-  return new Intl.DateTimeFormat('zh-CN', { timeZone: TZ, month:'short', day:'numeric', weekday:'short', ...options }).format(parseLocalDate(iso));
+  return new Intl.DateTimeFormat(currentLocale(), { timeZone: TZ, month:'short', day:'numeric', weekday:'short', ...options }).format(parseLocalDate(iso));
 }
 function startOfPlanWeek(dateIso = torontoDate()) {
   const d = parseLocalDate(dateIso);
@@ -3628,10 +3630,11 @@ function weekRelation(weekStart = selectedWeekStart) {
 }
 function weekViewLabel(weekStart = selectedWeekStart) {
   const relation = weekRelation(weekStart);
-  if (relation === 'current') return '本周计划';
-  if (weekStart === addDays(startOfPlanWeek(), -7)) return '上周回顾';
-  if (weekStart === addDays(startOfPlanWeek(), 7)) return '下周预览';
-  return relation === 'past' ? '历史周回顾' : '未来周预览';
+  const en = currentLanguage() === 'en';
+  if (relation === 'current') return en ? 'This Week' : '本周计划';
+  if (weekStart === addDays(startOfPlanWeek(), -7)) return en ? 'Last Week Review' : '上周回顾';
+  if (weekStart === addDays(startOfPlanWeek(), 7)) return en ? 'Next Week Preview' : '下周预览';
+  return relation === 'past' ? (en ? 'Past Week Review' : '历史周回顾') : (en ? 'Future Week Preview' : '未来周预览');
 }
 function excludedChannelSet(weekStart = selectedWeekStart) {
   return new Set(weekPreferencesFor(weekStart).excludedChannels.map(normalizedChannelName));
@@ -3828,6 +3831,115 @@ function ensureCurrentAndNextPlans() {
   if (!planForWeek(next).length) { setPlanForWeek(next, buildWeeklyPlan(next, { blockedVideoIds:planVideoIds(current) })); markPlanLocked(next, 'auto-first-create'); }
 }
 
+
+const UI_ZH_EN = {
+  '恢复优先 · 智能排课':'Recovery-first · Smart planning','今日':'Today','周计划':'Weekly Plan','视频库':'Video Library','待审核':'Review','训练记录':'History','设置':'Settings',
+  '恢复状态优先':'Recovery comes first','计划服务于身体状态，而不是反过来。':'The plan adapts to your body, not the other way around.','今天做什么':'Today’s workout','安装到 iPad':'Install on iPad',
+  '身体状态':'Body status','今天适合按计划训练吗？':'Does today’s plan fit how you feel?','本周概览':'This week','负荷与完成情况':'Load & completion','← 上一周':'← Previous','本周计划':'This Week','回到本周':'Back to this week','下一周 →':'Next →',
+  '周六至周五':'Saturday to Friday','计划与实际完成':'Plan & actual','周计划基础设置':'Weekly baseline settings','重新生成计划':'Regenerate plan','按日期调整强度':'Adjust by date','生理期安排':'Period plan','关闭模式':'Turn off','设置 / 修改':'Set / Edit',
+  '生理期模式严格排除腹肌／核心训练及臀桥、肩桥、髋抬高等骨盆倒置动作；候选不足时会安排休息。':'Period mode strictly excludes direct ab/core work and pelvic-elevation moves such as bridges; rest is used when no suitable video is available.',
+  '本周频道偏好':'Channel preferences','这一周不想跟练哪些 YouTuber？':'Which YouTubers do you want to skip this week?','全部恢复':'Restore all','勾选的频道不会出现在所选周的自动排课或“替换”结果中。每一周分别保存。':'Selected channels are excluded from auto-planning and replacements for this week. Saved separately by week.','保存并重新生成':'Save & regenerate',
+  '已批准内容':'Approved content','训练视频库':'Training video library','补充内置备用视频':'Add built-in backup videos','手动添加视频':'Add video manually','全部频道':'All channels','全部运动类型':'All exercise types','有氧':'Cardio','塑形':'Sculpt','力量训练':'Strength','瑜伽':'Yoga','拉伸':'Stretch','活动度 / 功能恢复':'Mobility / Functional recovery','冥想':'Meditation','待确认':'Needs review','全部体位':'All positions','垫上为主':'Mostly mat','混合':'Mixed','站立为主':'Mostly standing','全部偏好':'All preferences','♥ 喜欢':'♥ Like','不喜欢':'Dislike','未标记':'Unrated',
+  '内置顺序':'Default order','频道名称 A–Z':'Channel A–Z','频道名称 Z–A':'Channel Z–A','使用次数：最多优先':'Most used first','使用次数：最少优先':'Least used first','最近使用：最新优先':'Most recent first','最近使用：最早优先':'Oldest use first','视频标题 A–Z':'Video title A–Z','视频标题 Z–A':'Video title Z–A','时长：短到长':'Duration: short to long','时长：长到短':'Duration: long to short','个人偏好：喜欢优先':'Preference: liked first',
+  '自动同步后先人工确认':'Review before adding','待审核新视频':'New videos to review','无需 API：在 YouTube 找到单个视频后，可手动加入视频库并设置训练标签。只有已批准的视频会参与排课。':'You can also add an individual YouTube video manually. Only approved videos are used for planning.','训练反馈':'Training feedback','完成记录与身体反应':'Completed workouts & body response','导出数据':'Export data','最近记录':'Recent history',
+  '无 API 模式':'Manual mode','频道与视频快捷入口':'Channel & video shortcuts','点击频道可直接打开 YouTube 搜索；找到合适的单个视频后，回到 App 手动添加或替换即可。':'Open a channel in YouTube search, then return to the app to add or replace a video.','YouTube 新视频自动发现':'Auto-discover new YouTube videos','共享 YouTube 后端已预置':'Shared YouTube backend is preconfigured','已连接':'Connected','高级设置：自定义后端地址':'Advanced: custom backend URL','YouTube 后端地址（Vercel）':'YouTube backend URL (Vercel)','恢复默认共享后端':'Restore shared backend','打开 / 回到 App 时自动检查新视频':'Auto-check when opening / returning to the app','自动检查间隔（小时）':'Auto-check interval (hours)','增加频道':'Add channel','立即检查新视频':'Check now','保存自动同步设置':'Save auto-sync settings',
+  '排课偏好':'Planning preferences','默认规则':'Default rules','优先垫上训练':'Prefer mat workouts','避免大量卷腹':'Avoid lots of crunches','疼痛时自动降级':'Auto-downgrade with pain','MIZI 最短间隔（天）':'Minimum MIZI gap (days)','数据':'Data','备份与恢复':'Backup & restore','导出完整 JSON 备份':'Export full JSON backup','导入 JSON 备份':'Import JSON backup','恢复初始视频库':'Restore starter library','原型说明':'App capabilities','目前支持':'Currently supported',
+  '显示与语言':'Display & language','语言与外观':'Language & appearance','语言':'Language','外观':'Appearance','跟随系统':'Follow system','中文':'中文','浅色':'Light','深色':'Dark','“跟随系统”会根据设备语言以及浅色/深色外观自动切换；系统设置变化时 App 也会同步更新。':'Follow system uses your device language and light/dark appearance and updates automatically when the system changes.',
+  '下周可预知的信息':'What you can know in advance','周计划只填写可预知、相对稳定的信息。精力和当天身体状况都改为每天在首页一次 Check-in。':'Weekly settings only include relatively predictable information. Energy and daily body status are checked in each day.','近期带娃与步行负荷':'Recent childcare & walking load','每天可运动时间':'Daily workout time','本周期望':'Training preference','由状态自动判断':'Decide automatically','偏恢复':'Recovery-focused','正常训练':'Normal training','适度进阶':'Moderate progression','持续性／已知不适（可多选，会影响整周）':'Persistent / known discomfort (affects the week)','足弓/前脚掌':'Arch / forefoot','膝盖':'Knee','下背':'Lower back','肩颈':'Shoulder / neck','髋屈肌':'Hip flexor','腹部压力感':'Abdominal pressure','补充说明':'Notes','取消':'Cancel','保存并从今天更新':'Save & update from today',
+  '今天身体和精力怎么样？':'How are your body and energy today?','今日精力':'Today’s energy','很累':'Very tired','偏累':'Tired','正常':'Normal','不错':'Good','很好':'Great','今天有没有不适？':'Any discomfort today?','今日带娃/活动负荷':'Today’s childcare / activity load','今日恢复感受':'Recovery feeling','有点酸紧':'A little sore/tight','明显疲劳':'Clearly fatigued','今天想以恢复为主':'Recovery-focused today','昨晚睡眠明显不足':'Poor sleep last night','只影响今天':'Today only','今天带娃负荷特别高':'Very high childcare load today','这些不适预计会持续几天':'This discomfort may last several days','开启后会从今天起影响后续计划':'When on, this affects plans from today onward','今天开始生理期':'Period starts today','开启后从今天起按生理期安全规则重排':'When on, replan from today using period-safe rules','今天补充说明':'Today’s notes','保存今日状态':'Save today’s status',
+  '生理期设置':'Period settings','启用生理期模式':'Enable period mode','开始日期':'Start date','预计持续天数':'Expected duration','经量':'Flow','偏少':'Light','偏多':'Heavy','整体不适程度':'Overall discomfort','主要症状（可多选）':'Main symptoms','腹痛/痉挛':'Cramps','疲劳':'Fatigue','腰背酸痛':'Low-back soreness','头痛/头晕':'Headache / dizziness','腹胀':'Bloating','前两天只安排温和恢复':'Gentle recovery only for first two days','始终排除':'Always exclude','腹肌／核心训练':'Direct ab / core work','臀桥、肩桥、髋抬高及类似骨盆倒置动作':'Bridges / pelvic elevation and similar moves','备注':'Notes','保存并重新安排':'Save & replan',
+  '现场课程打卡':'In-person class check-in','课程日期':'Class date','实际分钟数':'Actual minutes','体感强度':'Perceived effort','课程后不适':'Post-class discomfort','无':'None','足部':'Foot','保存课程打卡':'Save class check-in','记录今天':'Log today','训练日期':'Workout date','完成情况':'Completion','全部完成':'Completed','完成一部分':'Partially completed','换成其他训练':'Swapped workout','跳过':'Skipped','这个视频你喜欢吗？':'Did you like this video?','一般 / 暂不评价':'Neutral / no rating','训练后不适':'Post-workout discomfort','保存记录':'Save record',
+  '手动录入':'Manual entry','添加训练视频':'Add training video','YouTube 链接':'YouTube link','标题':'Title','请选择 YouTuber':'Select YouTuber','自定义频道':'Custom channel','时长（分钟）':'Duration (minutes)','运动类型':'Exercise type','体位':'Position','腹压风险':'Abdominal-pressure risk','低':'Low','中':'Medium','高':'High','包含腹肌／核心训练':'Contains direct ab/core work','包含臀桥、肩桥或骨盆抬高动作':'Contains bridge / pelvic elevation','确认生理期可用':'Confirmed period-safe','加入视频库':'Add to library','视频库维护':'Video library maintenance','搜索并修改视频':'Search & edit video','重新搜索 YouTube':'Search YouTube again','在 App 内搜索':'Search in app','打开 YouTube 搜索':'Open YouTube search','单个 YouTube 视频链接':'Individual YouTube video URL','频道':'Channel','建议阶段':'Suggested phase','恢复期':'Recovery','稳定期':'Stable','进阶期':'Progression','包含大量传统卷腹':'Contains many traditional crunches','适合腹直肌分离恢复':'Diastasis-friendly','仅作为高强度备用':'High-intensity backup only','保存修改':'Save changes','人工审核':'Manual review','审核视频':'Review video','审核备注':'Review notes','不纳入':'Exclude','批准进入视频库':'Approve to library','iPad 安装':'iPad install','添加到主屏幕':'Add to Home Screen','知道了':'Got it'
+};
+
+function systemLanguage() {
+  const lang = String((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase();
+  return lang.startsWith('zh') ? 'zh' : 'en';
+}
+function currentLanguage() {
+  const mode = state?.settings?.languageMode || 'system';
+  return mode === 'system' ? systemLanguage() : mode;
+}
+function currentLocale() { return currentLanguage() === 'en' ? 'en-CA' : 'zh-CN'; }
+function resolvedAppearance() {
+  const mode = state?.settings?.appearanceMode || 'system';
+  if (mode === 'system') return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return mode;
+}
+function applyAppearance() {
+  const theme = resolvedAppearance();
+  document.documentElement.dataset.theme = theme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = theme === 'dark' ? '#171a18' : '#f6f2ea';
+  const apple = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  if (apple) apple.content = theme === 'dark' ? 'black-translucent' : 'default';
+}
+function translateTextValue(text, lang) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return text;
+  const reverse = Object.fromEntries(Object.entries(UI_ZH_EN).map(([zh,en]) => [en,zh]));
+  let translated = lang === 'en' ? UI_ZH_EN[trimmed] : reverse[trimmed];
+  if (!translated && lang === 'en') {
+    translated = trimmed
+      .replace(/^(\d+) 分钟$/, '$1 min')
+      .replace(/^已使用 (\d+) 次$/, 'Used $1 times')
+      .replace(/^今日状态 Check-in ·/, 'Daily Status Check-in ·')
+      .replace(/^上次检查：/, 'Last checked: ')
+      .replace(/^找到 (\d+) 个结果。请核对频道和缩略图后再选用。$/, 'Found $1 results. Check the channel and thumbnail before choosing.')
+      .replace(/^发现 (\d+) 个新视频，已放入待审核$/, 'Found $1 new videos and added them to Review');
+    if (translated === trimmed) translated = null;
+  }
+  return translated || text;
+}
+function localizeNode(root = document.body) {
+  const lang = currentLanguage();
+  document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    const raw = node.nodeValue;
+    const lead = raw.match(/^\s*/)?.[0] || '', tail = raw.match(/\s*$/)?.[0] || '';
+    const translated = translateTextValue(raw, lang);
+    if (translated !== raw) node.nodeValue = lead + String(translated).trim() + tail;
+  }
+  root.querySelectorAll?.('input[placeholder], textarea[placeholder]').forEach(el => {
+    const value = el.getAttribute('placeholder');
+    const translated = translateTextValue(value, lang);
+    if (translated !== value) el.setAttribute('placeholder', translated);
+  });
+  root.querySelectorAll?.('[aria-label]').forEach(el => {
+    const value = el.getAttribute('aria-label'); const translated = translateTextValue(value, lang);
+    if (translated !== value) el.setAttribute('aria-label', translated);
+  });
+}
+let localizationQueued = false;
+function applyLocalization() { applyAppearance(); localizeNode(document.body); }
+function queueLocalization() {
+  if (localizationQueued) return; localizationQueued = true;
+  requestAnimationFrame(() => { localizationQueued = false; applyLocalization(); });
+}
+const languageObserver = new MutationObserver(mutations => {
+  if (mutations.some(m => m.type === 'childList' && m.addedNodes.length)) queueLocalization();
+});
+function bindDisplaySettings() {
+  const lang = document.getElementById('languageMode');
+  const appearance = document.getElementById('appearanceMode');
+  lang?.addEventListener('change', () => {
+    state.settings.languageMode = lang.value; saveState(); renderAll(); applyLocalization();
+  });
+  appearance?.addEventListener('change', () => {
+    state.settings.appearanceMode = appearance.value; saveState(); applyAppearance();
+  });
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+    if ((state.settings.appearanceMode || 'system') === 'system') applyAppearance();
+  });
+  window.addEventListener('languagechange', () => {
+    if ((state.settings.languageMode || 'system') === 'system') { renderAll(); applyLocalization(); }
+  });
+  languageObserver.observe(document.body, { childList:true, subtree:true });
+}
+
 function renderAll() {
   ensureWeekCollections();
   const current = startOfPlanWeek();
@@ -3836,6 +3948,7 @@ function renderAll() {
   state.plan = planForWeek(current);
   state.weekPreferences = { weekStart: current, excludedChannels: [...weekPreferencesFor(current).excludedChannels] };
   renderHeader(); renderHome(); renderWeek(); renderLibrary(); renderReview(); renderInsights(); renderSettings();
+  queueLocalization();
 }
 function generatePlanSilently(weekStart = startOfPlanWeek()) {
   const { current, next } = currentAndNextWeekStarts();
@@ -3855,7 +3968,7 @@ function generatePlanSilently(weekStart = startOfPlanWeek()) {
 
 function renderHeader() {
   const today = torontoDate();
-  document.getElementById('todayDate').textContent = new Intl.DateTimeFormat('zh-CN',{timeZone:TZ,year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
+  document.getElementById('todayDate').textContent = new Intl.DateTimeFormat(currentLocale(),{timeZone:TZ,year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
   document.getElementById('reviewBadge').textContent = state.pending.filter(v => !v.approved && !v.rejected).length;
   const week = getWeekDates(selectedWeekStart);
   document.getElementById('weekRange').textContent = `${formatDate(week[0],{year:'numeric'})} — ${formatDate(week[6],{year:'numeric'})}`;
@@ -4161,7 +4274,7 @@ function renderReview() {
       <div class="button-row">${videoLinkMarkup(v, '查看')}<button class="primary-btn" onclick="openReview('${v.id}')">审核</button></div>
     </article>`).join('') : `<div class="empty-state"><strong>没有待审核视频</strong><br>可直接手动添加已确认的单个 YouTube 视频；无需配置 API。</div>`;
 }
-function formatPublished(value) { try { return new Intl.DateTimeFormat('zh-CN',{timeZone:TZ,month:'short',day:'numeric'}).format(new Date(value)); } catch { return '日期未知'; } }
+function formatPublished(value) { try { return new Intl.DateTimeFormat(currentLocale(),{timeZone:TZ,month:'short',day:'numeric'}).format(new Date(value)); } catch { return '日期未知'; } }
 function keywordTags(video) {
   const text = `${video.title} ${video.description}`.toLowerCase(); const tags=[];
   if (/postpartum|postnatal|diastasis/.test(text)) tags.push('产后候选');
@@ -4192,6 +4305,8 @@ function renderInsights() {
 }
 
 function renderSettings() {
+  const languageMode = document.getElementById('languageMode'); if (languageMode) languageMode.value = state.settings.languageMode || 'system';
+  const appearanceMode = document.getElementById('appearanceMode'); if (appearanceMode) appearanceMode.value = state.settings.appearanceMode || 'system';
   document.getElementById('youtubeWorkerUrl').value = state.settings.workerUrl || DEFAULT_YOUTUBE_BACKEND;
   document.getElementById('autoYouTubeSync').checked = state.settings.autoYouTubeSync !== false;
   document.getElementById('youtubeSyncHours').value = state.settings.youtubeSyncHours || 6;
@@ -4209,7 +4324,7 @@ function renderSettings() {
   const syncStatus = document.getElementById('youtubeSyncStatus');
   if (syncStatus) {
     if (!normalizedWorkerUrl(state.settings.workerUrl)) syncStatus.textContent = '共享后端未连接；可在高级设置恢复默认地址。';
-    else if (state.settings.lastSync) syncStatus.textContent = `上次检查：${new Date(state.settings.lastSync).toLocaleString('zh-CN', { timeZone: TZ })}`;
+    else if (state.settings.lastSync) syncStatus.textContent = `上次检查：${new Date(state.settings.lastSync).toLocaleString(currentLocale(), { timeZone: TZ })}`;
     else syncStatus.textContent = '共享后端已连接；尚未成功检查。';
   }
 }
@@ -4224,7 +4339,7 @@ function changeWeekView(days) { setWeekView(addDays(selectedWeekStart, days)); }
 function switchView(view) {
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${view}`));
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
-  const titles={home:'今天做什么',week:'本周运动安排',library:'训练视频库',review:'待审核新视频',insights:'训练记录',settings:'设置'};
+  const titles=currentLanguage()==='en'?{home:'Today',week:'Weekly Plan',library:'Video Library',review:'Review New Videos',insights:'Training History',settings:'Settings'}:{home:'今天做什么',week:'本周运动安排',library:'训练视频库',review:'待审核新视频',insights:'训练记录',settings:'设置'};
   document.getElementById('viewTitle').textContent=view==='week' ? weekViewLabel(selectedWeekStart) : titles[view];
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -5104,7 +5219,7 @@ window.addEventListener('appinstalled',()=>showToast('已安装到主屏幕'));
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.error));}
 
 repairRetiredChannelSlots();
-bindEvents();hydrateAssessmentDialog();hydrateMenstrualDialog();renderAll();updateInstallButtonForDevice();
+bindEvents();bindDisplaySettings();hydrateAssessmentDialog();hydrateMenstrualDialog();renderAll();applyAppearance();applyLocalization();updateInstallButtonForDevice();
 if (!state.settings.shareOnboardingSeen) {
   state.settings.shareOnboardingSeen = true;
   saveState();
